@@ -72,7 +72,7 @@ final class DropCatcherView: NSView {
         let urls = readURLs(from: sender)
         guard !urls.isEmpty else { return false }
         DispatchQueue.main.async {
-            coordinator?.onDrop(urls)
+            self.coordinator?.onDrop(urls)
         }
         return true
     }

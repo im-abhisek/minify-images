@@ -1,7 +1,7 @@
 import Foundation
 import ImageIO
 
-struct ConversionResult: Sendable {
+struct ConversionResult: Equatable, Sendable {
     let destination: URL
     let sourceBytes: Int
     let destBytes: Int

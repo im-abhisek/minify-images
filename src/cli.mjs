@@ -174,7 +174,7 @@ export function outputPathFor(source, root, outDir) {
   return path.join(path.resolve(outDir), relativeDir, base);
 }
 
-function webpOptions({ format, hasAlpha, quality, lossless, photo }) {
+export function webpOptions({ format, hasAlpha, quality, lossless, photo }) {
   const forceLossless = lossless;
   const pngLikePhoto = format === "png" && photo;
   const pngPreserve = format === "png" && !photo && !forceLossless;

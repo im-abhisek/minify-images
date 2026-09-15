@@ -5,3 +5,8 @@ tmp/
 output/
 .vscode/
 .idea/
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.build/
+.swiftpm/

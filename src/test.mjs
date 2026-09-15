@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { convertImage, outputPathFor, parseArgs, run } from "./cli.mjs";
+import { convertImage, outputPathFor, parseArgs, run, webpOptions } from "./cli.mjs";
 
 let failed = 0;
 
@@ -134,6 +134,24 @@ await withTemp(async (dir) => {
   assert(result.width === 400, `--max 400 resizes width to 400 (got ${result.width})`);
   assert(result.height === 267, `--max 400 keeps aspect ratio (got ${result.height})`);
 });
+
+{
+  const jpeg = webpOptions({ format: "jpeg", hasAlpha: false, quality: 90, lossless: false, photo: false });
+  assert(jpeg.label === "photo, q90", `JPEG default label (${jpeg.label})`);
+  assert(jpeg.options.quality === 90 && jpeg.options.effort === 6 && jpeg.options.smartSubsample === true, "JPEG default is q90 effort 6 smartSubsample");
+}
+
+{
+  const png = webpOptions({ format: "png", hasAlpha: true, quality: 90, lossless: false, photo: false });
+  assert(png.label === "png+alpha, lossless", `transparent PNG label (${png.label})`);
+  assert(png.options.lossless === true && png.options.exact === true && png.options.alphaQuality === 100, "transparent PNG is lossless exact");
+}
+
+{
+  const png = webpOptions({ format: "png", hasAlpha: false, quality: 90, lossless: false, photo: false });
+  assert(png.label === "png, near-lossless q90", `opaque PNG label (${png.label})`);
+  assert(png.options.nearLossless === true && png.options.quality === 90, "opaque PNG is near-lossless q90");
+}
 
 {
   const opts = parseArgs(["node", "cli", "--quality", "80", "--max", "2400", "-r", "a.png"]);

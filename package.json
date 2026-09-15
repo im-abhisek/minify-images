@@ -1,0 +1,20 @@
+{
+  "name": "minify-images",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Compress JPEG and PNG to high-quality WebP for blog posts",
+  "type": "module",
+  "bin": {
+    "compress-for-blog": "./compress-for-blog"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "test": "node src/test.mjs"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "dependencies": {
+    "sharp": "^0.35.4"
+  }
+}

@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# Convert JPEG/PNG images to high-quality WebP for blog posts.
+# Usage: ./compress-for-blog photo.jpg
+#        ./compress-for-blog ~/Desktop/exports/
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+PAUSE_WHEN_DONE=0
+
+# Double-clicking the .command file on a Mac opens Terminal; keep it readable.
+if [[ "${COMPRESS_FOR_BLOG_MAC_PICKER:-}" == "1" || "$(basename "$0")" == *.command ]]; then
+  PAUSE_WHEN_DONE=1
+  if [[ $# -eq 0 ]] && command -v osascript >/dev/null 2>&1; then
+    SELECTED="$(osascript <<'APPLESCRIPT'
+try
+  set theItems to choose file with prompt "Choose JPEG or PNG images to compress for your blog" with multiple selections allowed
+  set output to ""
+  repeat with theItem in theItems
+    set output to output & POSIX path of theItem & linefeed
+  end repeat
+  return output
+on error
+  return ""
+end try
+APPLESCRIPT
+)"
+    if [[ -z "${SELECTED//[$'\t\r\n ']/}" ]]; then
+      echo "Nothing selected."
+      read -r -p "Press Return to close…" _
+      exit 0
+    fi
+    paths=()
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && paths+=("$line")
+    done <<< "$SELECTED"
+    set -- "${paths[@]}"
+  fi
+fi
+
+need_node() {
+  echo "Node.js 20+ is required."
+  echo "On a Mac with Homebrew:  brew install node"
+  echo "Then run this script again."
+  if [[ "$PAUSE_WHEN_DONE" -eq 1 ]]; then
+    read -r -p "Press Return to close…" _
+  fi
+  exit 1
+}
+
+if ! command -v node >/dev/null 2>&1; then
+  need_node
+fi
+
+NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
+if (( NODE_MAJOR < 20 )); then
+  echo "Found Node $(node -v); 20+ is required."
+  need_node
+fi
+
+if [[ ! -d "$ROOT/node_modules/sharp" ]]; then
+  echo "Installing sharp (first run only)…"
+  (cd "$ROOT" && npm install)
+  echo
+fi
+
+set +e
+node "$ROOT/src/cli.mjs" "$@"
+STATUS=$?
+set -e
+
+if [[ "$PAUSE_WHEN_DONE" -eq 1 ]]; then
+  echo
+  read -r -p "Press Return to close…" _
+fi
+
+exit "$STATUS"

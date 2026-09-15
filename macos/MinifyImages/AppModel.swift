@@ -251,8 +251,6 @@ enum JobStatus: Equatable, Sendable {
     case failed(String)
 }
 
-extension ConversionResult: Equatable {}
-
 enum OutputMode: String, CaseIterable, Identifiable {
     case besideOriginals
     case folder

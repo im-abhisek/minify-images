@@ -251,6 +251,19 @@ export async function convertImage(source, dest, opts) {
   };
 }
 
+function prettyPath(abs) {
+  const resolved = path.resolve(abs);
+  const rel = path.relative(process.cwd(), resolved);
+  if (rel && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)) {
+    return rel;
+  }
+  const home = process.env.HOME;
+  if (home && (resolved === home || resolved.startsWith(`${home}${path.sep}`))) {
+    return `~${resolved.slice(home.length)}`;
+  }
+  return resolved;
+}
+
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -305,6 +318,8 @@ export async function run(argv, io = console) {
     unique.push(job);
   }
 
+  unique.sort((a, b) => a.source.localeCompare(b.source));
+
   if (unique.length === 0) {
     io.error("No JPEG or PNG files found.");
     return 1;
@@ -319,8 +334,8 @@ export async function run(argv, io = console) {
 
   for (const job of unique) {
     const dest = outputPathFor(job.source, job.root, opts.out);
-    const display = path.relative(process.cwd(), job.source) || job.source;
-    const destDisplay = path.relative(process.cwd(), dest) || dest;
+    const display = prettyPath(job.source);
+    const destDisplay = prettyPath(dest);
 
     if (opts.dryRun) {
       io.log(`  ${display}  →  ${destDisplay}`);

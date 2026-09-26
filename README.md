@@ -11,7 +11,7 @@ Two ways to run it:
 
 ## Mac app
 
-Native SwiftUI app, always in dark mode. Encodes with [libwebp](https://developers.google.com/speed/webp) using the same automatic policy as the CLI (lossless PNG with alpha, near-lossless opaque PNG). The app’s quality slider starts at **75**; the CLI default is still 90.
+**WebPinch** is the native SwiftUI app, always in dark mode. The built bundle is `WebPinch.app`. It encodes with [libwebp](https://developers.google.com/speed/webp). The quality slider applies to JPEGs and PNGs (lossy WebP, alpha kept) and starts at **75**; the CLI default is still 90.
 
 This repo can be opened on a Mac. The app is not prebuilt; you compile it once in Xcode.
 
@@ -26,7 +26,7 @@ open macos/MinifyImages.xcodeproj
 ```
 
 1. Wait for Swift packages to finish resolving (first open downloads [libwebp](https://github.com/SDWebImage/libwebp-Xcode); needs network).
-2. Select the **Minify Images** scheme and **My Mac**.
+2. Select the **Minify Images** scheme (Xcode scheme name; the app is WebPinch) and **My Mac**.
 3. Press **⌘R**.
 
 If signing complains, open the **MinifyImages** target → **Signing & Capabilities** and choose your Personal Team (a free Apple ID is enough to run locally). The project ships ad-hoc signed (`CODE_SIGN_IDENTITY = "-"`) so Run often works with no team set.
@@ -38,9 +38,9 @@ Product → Test (**⌘U**) runs the Mac unit tests (quality policy, output path
 ### What you get
 
 - Drop JPEG/PNG files **or a folder**. A dropped folder includes JPEG/PNG files in subfolders.
-- One pane: drop files or a folder, or use Add Files. Added images show as a thumbnail grid with per-file size and progress. The pane is a solid rounded surface with a faint canvas grid and hairline, and a soft blue tint while dragging. While converting, a slow blue-and-pink wash fades in behind the tiles.
+- One pane: drop files or a folder, or use Add Files. Added images show as a thumbnail grid with per-file size and progress. The pane is a solid rounded surface with a faint canvas grid and hairline, and a soft blue tint while dragging. While converting, the border picks up a slow, faint blue-and-pink tint.
 - Output reads **Next to originals**, with a **Choose Folder** link. After a folder is chosen the name is shown, a small clear button returns to originals, and **Change** reopens the panel. The folder is remembered until it is cleared.
-- Quality (default 75) sits beside Output on a 0–100 slider whose track runs from red through yellow to green. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha. The window title is Minify Images.
+- Quality (default 75) sits beside Output on a 0–100 slider whose track runs from red through yellow to green. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha. The window title, Dock label, and app menu use the name WebPinch.
 
 Originals are never modified.
 

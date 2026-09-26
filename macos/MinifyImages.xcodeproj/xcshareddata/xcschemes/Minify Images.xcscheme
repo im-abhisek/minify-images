@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A10000000000000000000008"
-               BuildableName = "Minify Images.app"
+               BuildableName = "WebPinch.app"
                BlueprintName = "MinifyImages"
                ReferencedContainer = "container:MinifyImages.xcodeproj">
             </BuildableReference>
@@ -56,7 +56,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000008"
-            BuildableName = "Minify Images.app"
+            BuildableName = "WebPinch.app"
             BlueprintName = "MinifyImages"
             ReferencedContainer = "container:MinifyImages.xcodeproj">
          </BuildableReference>
@@ -73,7 +73,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A10000000000000000000008"
-            BuildableName = "Minify Images.app"
+            BuildableName = "WebPinch.app"
             BlueprintName = "MinifyImages"
             ReferencedContainer = "container:MinifyImages.xcodeproj">
          </BuildableReference>

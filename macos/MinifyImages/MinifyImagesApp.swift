@@ -17,7 +17,7 @@ struct MinifyImagesApp: App {
     var body: some Scene {
         // One window for the life of the app. WindowGroup was opening a new
         // window for every file passed to `open -a` / Open With.
-        Window("Minify Images", id: "main") {
+        Window("WebPinch", id: "main") {
             ContentView()
                 .preferredColorScheme(.dark)
                 .background {

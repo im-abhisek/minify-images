@@ -19,7 +19,7 @@ struct ContentView: View {
             Color(nsColor: .windowBackgroundColor)
                 .ignoresSafeArea()
         }
-        .background(WindowTitleSetter(title: "Minify Images"))
+        .background(WindowTitleSetter(title: "WebPinch"))
         .preferredColorScheme(.dark)
         .onAppear {
             DispatchQueue.main.async {
@@ -46,7 +46,7 @@ struct ContentView: View {
 }
 
 /// Hides the system title (still set for Mission Control, the Window menu, and accessibility)
-/// and draws "Minify Images" at the window's horizontal centre, level with the traffic lights.
+/// and draws "WebPinch" at the window's horizontal centre, level with the traffic lights.
 /// The title bar is transparent and unified so it matches the window background, and the
 /// traffic lights sit in from the corner. macOS 26 draws the system title leading-aligned.
 private struct WindowTitleSetter: NSViewRepresentable {

@@ -159,7 +159,7 @@ private struct ConversionBorderGlow: View {
     private let rimInset: CGFloat = 1
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 8.0, paused: !self.animate)) { timeline in
+        TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: !self.animate)) { timeline in
             let angle = self.angle(at: timeline.date)
             self.shape
                 .inset(by: self.rimInset)
@@ -175,13 +175,15 @@ private struct ConversionBorderGlow: View {
 
     private func angle(at date: Date) -> Angle {
         guard self.animate else { return .degrees(0) }
-        let cycle = 24.0
-        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
+        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.cycle) / Self.cycle
         return .degrees(phase * 360)
     }
 
+    /// One full trip around the border. Fast enough to see, still unhurried.
+    private static let cycle = 9.0
+    /// Same opacity as before. Pink sits further toward magenta so the two hues separate as they travel.
     private static let blue = Color.blue.opacity(0.34)
-    private static let pink = Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.28)
+    private static let pink = Color(red: 0.93, green: 0.22, blue: 0.78).opacity(0.28)
 
     private static func gradient(angle: Angle) -> AngularGradient {
         AngularGradient(

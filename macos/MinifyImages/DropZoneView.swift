@@ -4,6 +4,8 @@ import SwiftUI
 struct ImagePaneView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(PaneBorderStyle.storageKey) private var borderStyle: PaneBorderStyle = .solidBlack
+    @AppStorage(PaneFillStyle.storageKey) private var fillStyle: PaneFillStyle = .gradient
 
     private let paneShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
@@ -16,7 +18,11 @@ struct ImagePaneView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             ZStack {
-                paneShape.fill(model.isTargeted ? AnyShapeStyle(Color.accentColor.opacity(0.14)) : AnyShapeStyle(Self.paneFill))
+                paneShape.fill(
+                    model.isTargeted
+                        ? AnyShapeStyle(Color.accentColor.opacity(0.14))
+                        : self.fillStyle.fillStyle
+                )
                 PaneGrid()
                 ConversionEdgeGlow(animate: model.isRunning && !reduceMotion)
                     .opacity(model.isRunning ? 1 : 0)
@@ -37,7 +43,7 @@ struct ImagePaneView: View {
                 if model.isTargeted {
                     paneShape.strokeBorder(Color.accentColor, lineWidth: 1)
                 } else {
-                    paneShape.strokeBorder(Self.rim, lineWidth: 1)
+                    paneShape.strokeBorder(self.borderStyle.strokeStyle, lineWidth: 1)
                 }
             }
             .allowsHitTesting(false)
@@ -116,26 +122,6 @@ struct ImagePaneView: View {
     private var headerTitle: String {
         model.jobs.count == 1 ? "1 image" : "\(model.jobs.count) images"
     }
-
-    /// Slightly darker than the window at the top, current grey pane at the bottom.
-    private static let paneFill = LinearGradient(
-        colors: [
-            Color.black.opacity(0.16),
-            Color.white.opacity(0.05)
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-    )
-
-    /// Light along the top edge, dark along the bottom.
-    private static let rim = LinearGradient(
-        colors: [
-            Color.white.opacity(0.22),
-            Color.black.opacity(0.50)
-        ],
-        startPoint: .top,
-        endPoint: .bottom
-    )
 }
 
 /// Hairline canvas seams over the pane fill. 32pt cells, faint black.

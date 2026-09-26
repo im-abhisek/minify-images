@@ -58,6 +58,12 @@ struct MinifyImagesApp: App {
                 .disabled(!model.isRunning)
             }
         }
+        // TEMPORARY. Delete this menu with PaneStyle.swift.
+        .commands {
+            CommandMenu("Pane Style") {
+                PaneStyleMenu()
+            }
+        }
     }
 }
 

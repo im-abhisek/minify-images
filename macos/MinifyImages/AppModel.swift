@@ -22,6 +22,8 @@ final class AppModel {
 
     private var runningTask: Task<Void, Never>?
     private var activeGeneration: Int32 = 0
+    /// Set when a batch finishes with every tile succeeded. Convert stays off until this no longer matches.
+    private var settledSignature: ConvertSignature?
     private var isPresentingPanel = false
     private var scopedInputs: [URL] = []
     private var scopedOutputURL: URL?
@@ -46,7 +48,11 @@ final class AppModel {
     }
 
     var canConvert: Bool {
-        !jobs.isEmpty && !isRunning && (outputMode == .besideOriginals || outputFolder != nil)
+        guard !jobs.isEmpty, !isRunning else { return false }
+        guard outputMode == .besideOriginals || outputFolder != nil else { return false }
+        if jobs.contains(where: { self.needsEncode($0) }) { return true }
+        guard let settledSignature else { return true }
+        return signature != settledSignature
     }
 
     var convertDisabledReason: String? {
@@ -108,7 +114,7 @@ final class AppModel {
         }
         guard added else { return }
         droppedInputs = merged
-        refreshJobs(resetResults: true)
+        refreshJobs(resetResults: false)
     }
 
     /// Ignores the request while a batch is running so the in-progress count stays on the original list.
@@ -130,7 +136,14 @@ final class AppModel {
         let collected = ImageCollector.collectDropped(urls: droppedInputs, recursive: true)
         jobs = collected.images.map { item in
             if let existing = previous[item.source.standardizedFileURL.path], !resetResults {
-                return ImageJob(id: existing.id, source: item.source, root: item.root, status: existing.status)
+                return ImageJob(
+                    id: existing.id,
+                    source: item.source,
+                    root: item.root,
+                    status: existing.status,
+                    convertedQuality: existing.convertedQuality,
+                    convertedOutputKey: existing.convertedOutputKey
+                )
             }
             return ImageJob(source: item.source, root: item.root)
         }
@@ -206,6 +219,7 @@ final class AppModel {
         skippedNotice = nil
         statusMessage = nil
         lastSummary = nil
+        settledSignature = nil
     }
 
     func cancel() {
@@ -226,18 +240,25 @@ final class AppModel {
 
     func convert() {
         guard canConvert else { return }
+        if !jobs.contains(where: { self.needsEncode($0) }) {
+            self.settledSignature = self.signature
+            return
+        }
         ensureOutputAccess()
         cancel()
         isRunning = true
         runningQuality = quality
         lastSummary = nil
         statusMessage = nil
-        for index in jobs.indices {
-            jobs[index].status = .queued
+        for index in jobs.indices where self.needsEncode(self.jobs[index]) {
+            self.jobs[index].status = .queued
+            self.jobs[index].convertedQuality = nil
+            self.jobs[index].convertedOutputKey = nil
         }
 
         let snapshot = jobs
         let currentSettings = settings
+        let runSignature = signature
         let generation = WebPEncoder.generation
         self.activeGeneration = generation
         runningTask = Task.detached(priority: .userInitiated) { [weak self] in
@@ -251,6 +272,11 @@ final class AppModel {
                 if Task.isCancelled || WebPEncoder.generation != generation {
                     cancelled = true
                     break
+                }
+                if case .succeeded = job.status,
+                   job.convertedQuality == currentSettings.quality,
+                   job.convertedOutputKey == currentSettings.outputKey {
+                    continue
                 }
                 await self?.markConverting(id: job.id, generation: generation)
                 if Task.isCancelled || WebPEncoder.generation != generation {
@@ -273,7 +299,13 @@ final class AppModel {
                     totalIn += result.sourceBytes
                     totalOut += result.destBytes
                     wrote += 1
-                    await self?.markSucceeded(id: job.id, result: result, generation: generation)
+                    await self?.markSucceeded(
+                        id: job.id,
+                        result: result,
+                        generation: generation,
+                        quality: currentSettings.quality,
+                        outputKey: currentSettings.outputKey
+                    )
                 } catch is CancellationError {
                     cancelled = true
                     await self?.revertToQueued(id: job.id, generation: generation)
@@ -290,7 +322,8 @@ final class AppModel {
                 totalIn: totalIn,
                 totalOut: totalOut,
                 cancelled: cancelled || Task.isCancelled,
-                generation: generation
+                generation: generation,
+                runSignature: runSignature
             )
         }
     }
@@ -447,10 +480,18 @@ final class AppModel {
         }
     }
 
-    private func markSucceeded(id: UUID, result: ConversionResult, generation: Int32) {
+    private func markSucceeded(
+        id: UUID,
+        result: ConversionResult,
+        generation: Int32,
+        quality: Int,
+        outputKey: String
+    ) {
         guard self.isRunning, generation == self.activeGeneration else { return }
         guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
         self.jobs[index].status = .succeeded(result)
+        self.jobs[index].convertedQuality = quality
+        self.jobs[index].convertedOutputKey = outputKey
     }
 
     private func markFailed(id: UUID, message: String, generation: Int32) {
@@ -459,13 +500,28 @@ final class AppModel {
         self.jobs[index].status = .failed(message)
     }
 
-    private func finishRun(wrote: Int, failed: Int, totalIn: Int, totalOut: Int, cancelled: Bool, generation: Int32) {
+    private func finishRun(
+        wrote: Int,
+        failed: Int,
+        totalIn: Int,
+        totalOut: Int,
+        cancelled: Bool,
+        generation: Int32,
+        runSignature: ConvertSignature
+    ) {
         guard generation == self.activeGeneration else { return }
         isRunning = false
         runningTask = nil
         if cancelled {
             statusMessage = "Cancelled"
             return
+        }
+        let everyTileSucceeded = !jobs.isEmpty && jobs.allSatisfy { job in
+            if case .succeeded = job.status { return true }
+            return false
+        }
+        if failed == 0 && everyTileSucceeded && signature == runSignature {
+            settledSignature = runSignature
         }
         let whereText: String
         if let folder = settings.outputFolder {
@@ -481,6 +537,26 @@ final class AppModel {
             destinationNote: whereText
         )
     }
+
+    private var signature: ConvertSignature {
+        ConvertSignature(
+            quality: quality,
+            outputKey: settings.outputKey,
+            sources: jobs.map { $0.source.standardizedFileURL.path }.sorted()
+        )
+    }
+
+    /// A tile already written at this quality and output location does not need another encode.
+    private func needsEncode(_ job: ImageJob) -> Bool {
+        guard case .succeeded = job.status else { return true }
+        return job.convertedQuality != quality || job.convertedOutputKey != settings.outputKey
+    }
+}
+
+private struct ConvertSignature: Equatable, Sendable {
+    var quality: Int
+    var outputKey: String
+    var sources: [String]
 }
 
 struct ImageJob: Identifiable, Equatable, Sendable {
@@ -488,12 +564,23 @@ struct ImageJob: Identifiable, Equatable, Sendable {
     let source: URL
     let root: URL
     var status: JobStatus
+    var convertedQuality: Int?
+    var convertedOutputKey: String?
 
-    init(id: UUID = UUID(), source: URL, root: URL, status: JobStatus = .queued) {
+    init(
+        id: UUID = UUID(),
+        source: URL,
+        root: URL,
+        status: JobStatus = .queued,
+        convertedQuality: Int? = nil,
+        convertedOutputKey: String? = nil
+    ) {
         self.id = id
         self.source = source
         self.root = root
         self.status = status
+        self.convertedQuality = convertedQuality
+        self.convertedOutputKey = convertedOutputKey
     }
 
     var name: String { source.lastPathComponent }

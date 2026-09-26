@@ -16,6 +16,14 @@ struct ConversionSettings: Equatable, Sendable {
 
     var lossless: Bool { pngStrategy == .lossless }
     var photo: Bool { pngStrategy == .photo }
+
+    /// Identity of where this batch writes, so a finished batch can be skipped until it changes.
+    var outputKey: String {
+        if let outputFolder {
+            return "folder:" + outputFolder.resolvingSymlinksInPath().standardizedFileURL.path
+        }
+        return "beside"
+    }
 }
 
 enum PNGStrategy: String, CaseIterable, Identifiable, Sendable {

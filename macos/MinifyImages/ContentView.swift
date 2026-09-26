@@ -353,7 +353,7 @@ private struct StatusBar: View {
                     Button("Show in Finder") {
                         model.revealOutputs()
                     }
-                    .buttonStyle(MinifyButtonStyle(compact: true))
+                    .buttonStyle(FilledGreyButtonStyle())
                 }
                 if !model.jobs.isEmpty {
                     if model.isRunning {
@@ -369,7 +369,7 @@ private struct StatusBar: View {
                         .buttonStyle(FilledGreyButtonStyle())
                     }
                 }
-                Button(model.isRunning ? "Converting…" : convertTitle) {
+                Button(model.isRunning ? "Converting…" : "Convert") {
                     model.convert()
                 }
                 .keyboardShortcut(.return, modifiers: .command)
@@ -384,12 +384,6 @@ private struct StatusBar: View {
 
     private var emphasize: Bool {
         model.isRunning || model.lastSummary != nil
-    }
-
-    private var convertTitle: String {
-        let n = model.jobs.count
-        if n == 0 { return "Convert" }
-        return n == 1 ? "Convert 1 image" : "Convert \(n) images"
     }
 
     private var statusText: String {

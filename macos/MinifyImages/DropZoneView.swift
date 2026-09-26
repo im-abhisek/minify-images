@@ -23,9 +23,6 @@ struct ImagePaneView: View {
                         ? AnyShapeStyle(Color.accentColor.opacity(0.14))
                         : AnyShapeStyle(Self.paneFill)
                 )
-                ConversionBottomWash(animate: model.isRunning && !reduceMotion)
-                    .opacity(model.isRunning ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.8), value: model.isRunning)
                 PaneGrid()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -39,11 +36,14 @@ struct ImagePaneView: View {
             }
         }
         .overlay {
-            Group {
+            ZStack {
                 if model.isTargeted {
                     paneShape.strokeBorder(Color.accentColor, lineWidth: 1)
                 } else {
                     paneShape.strokeBorder(Self.paneRim, lineWidth: 1)
+                    ConversionBorderGlow(animate: model.isRunning && !reduceMotion)
+                        .opacity(model.isRunning ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.8), value: model.isRunning)
                 }
             }
             .allowsHitTesting(false)
@@ -149,69 +149,45 @@ private struct PaneGrid: View {
     }
 }
 
-/// Faint blue and pink along the bottom of the pane. The top edge is a slow convex wave.
-/// Reduce Motion keeps the convex shape and does not drift.
-private struct ConversionBottomWash: View {
+/// Soft blue and pink drifting around the pane stroke. The fill stays untouched.
+/// First and last stops match so the ring has no seam. Reduce Motion holds the angle still.
+private struct ConversionBorderGlow: View {
     var animate: Bool
+
+    private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 8.0, paused: !self.animate)) { timeline in
-            let phase = self.phase(at: timeline.date)
-            Canvas { context, size in
-                Self.draw(context: &context, size: size, animate: self.animate, phase: phase)
-            }
+            let angle = self.angle(at: timeline.date)
+            self.shape
+                .strokeBorder(Self.gradient(angle: angle), lineWidth: 1.5)
+                .blur(radius: 1.5)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    private func phase(at date: Date) -> Double {
-        guard self.animate else { return 0 }
-        let cycle = 9.0
-        return date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
+    private func angle(at date: Date) -> Angle {
+        guard self.animate else { return .degrees(0) }
+        let cycle = 24.0
+        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
+        return .degrees(phase * 360)
     }
 
-    private static func draw(context: inout GraphicsContext, size: CGSize, animate: Bool, phase: Double) {
-        guard size.width > 1, size.height > 1 else { return }
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: size.height))
-        let step: CGFloat = 8
-        var x: CGFloat = 0
-        while x <= size.width {
-            let y = size.height - Self.bandHeight(x: x, size: size, animate: animate, phase: phase)
-            path.addLine(to: CGPoint(x: x, y: y))
-            x += step
-        }
-        let endY = size.height - Self.bandHeight(x: size.width, size: size, animate: animate, phase: phase)
-        path.addLine(to: CGPoint(x: size.width, y: endY))
-        path.addLine(to: CGPoint(x: size.width, y: size.height))
-        path.closeSubpath()
+    private static let blue = Color.blue.opacity(0.34)
+    private static let pink = Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.28)
 
-        var soft = context
-        soft.addFilter(.blur(radius: 16))
-        soft.fill(
-            path,
-            with: .linearGradient(
-                Gradient(colors: [
-                    Color.blue.opacity(0.14),
-                    Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.11),
-                    Color.blue.opacity(0.09)
-                ]),
-                startPoint: CGPoint(x: 0, y: size.height),
-                endPoint: CGPoint(x: size.width, y: size.height)
-            )
+    private static func gradient(angle: Angle) -> AngularGradient {
+        AngularGradient(
+            gradient: Gradient(stops: [
+                Gradient.Stop(color: Self.blue, location: 0),
+                Gradient.Stop(color: Self.pink, location: 0.5),
+                Gradient.Stop(color: Self.blue, location: 1)
+            ]),
+            center: .center,
+            startAngle: angle,
+            endAngle: angle + .degrees(360)
         )
-    }
-
-    /// Sides stay lower. Two slow sines ripple the top while a batch is running.
-    private static func bandHeight(x: CGFloat, size: CGSize, animate: Bool, phase: Double) -> CGFloat {
-        let t = Double(x / max(size.width, 1))
-        let convex = 4 * t * (1 - t)
-        let base = size.height * (0.14 + 0.12 * convex)
-        guard animate else { return base }
-        let wave = sin(t * 2 * Double.pi * 1.25 + phase * 2 * Double.pi) * 0.05
-            + sin(t * 2 * Double.pi * 2.6 - phase * 2 * Double.pi * 0.67) * 0.028
-        return max(size.height * 0.05, base + size.height * wave)
     }
 }
 

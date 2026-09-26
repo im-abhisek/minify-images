@@ -6,6 +6,7 @@ import SwiftUI
 enum PaneBorderStyle: String, CaseIterable, Identifiable {
     case gradient
     case solidBlack
+    case none
 
     static let storageKey = "temporary.paneStyle.border"
 
@@ -15,10 +16,12 @@ enum PaneBorderStyle: String, CaseIterable, Identifiable {
         switch self {
         case .gradient: "Gradient (white to black)"
         case .solidBlack: "Solid black"
+        case .none: "None"
         }
     }
 
-    var strokeStyle: AnyShapeStyle {
+    /// `nil` draws no stroke. Drag-over still paints the blue edge separately.
+    var strokeStyle: AnyShapeStyle? {
         switch self {
         case .gradient:
             AnyShapeStyle(
@@ -33,6 +36,8 @@ enum PaneBorderStyle: String, CaseIterable, Identifiable {
             )
         case .solidBlack:
             AnyShapeStyle(Color.black.opacity(0.68))
+        case .none:
+            nil
         }
     }
 }
@@ -40,8 +45,12 @@ enum PaneBorderStyle: String, CaseIterable, Identifiable {
 enum PaneFillStyle: String, CaseIterable, Identifiable {
     case gradient
     case flatGrey
+    case darkGrey
 
     static let storageKey = "temporary.paneStyle.fill"
+    /// Starting colour of the fill gradient. Dark grey uses this flat.
+    static let gradientTop = Color.black.opacity(0.16)
+    static let gradientBottom = Color.white.opacity(0.05)
 
     var id: String { self.rawValue }
 
@@ -49,6 +58,7 @@ enum PaneFillStyle: String, CaseIterable, Identifiable {
         switch self {
         case .gradient: "Gradient"
         case .flatGrey: "Flat grey"
+        case .darkGrey: "Dark grey"
         }
     }
 
@@ -57,16 +67,15 @@ enum PaneFillStyle: String, CaseIterable, Identifiable {
         case .gradient:
             AnyShapeStyle(
                 LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.16),
-                        Color.white.opacity(0.05)
-                    ],
+                    colors: [Self.gradientTop, Self.gradientBottom],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
         case .flatGrey:
-            AnyShapeStyle(Color.white.opacity(0.05))
+            AnyShapeStyle(Self.gradientBottom)
+        case .darkGrey:
+            AnyShapeStyle(Self.gradientTop)
         }
     }
 }

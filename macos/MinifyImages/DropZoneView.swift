@@ -42,8 +42,8 @@ struct ImagePaneView: View {
             Group {
                 if model.isTargeted {
                     paneShape.strokeBorder(Color.accentColor, lineWidth: 1)
-                } else {
-                    paneShape.strokeBorder(self.borderStyle.strokeStyle, lineWidth: 1)
+                } else if let stroke = self.borderStyle.strokeStyle {
+                    paneShape.strokeBorder(stroke, lineWidth: 1)
                 }
             }
             .allowsHitTesting(false)

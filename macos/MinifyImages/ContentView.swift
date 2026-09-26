@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -6,16 +7,16 @@ struct ContentView: View {
     var body: some View {
         @Bindable var model = model
         VStack(spacing: 0) {
-            header
-
             ImagePaneView()
                 .padding(.horizontal, 20)
+                .padding(.top, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             OptionsView()
             StatusBar()
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .background(WindowTitleSetter(title: "Minify Images"))
         .preferredColorScheme(.dark)
         .onDrop(of: [.fileURL, .folder, .directory], isTargeted: $model.isTargeted) { providers in
             Task {
@@ -34,20 +35,39 @@ struct ContentView: View {
         )
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Minify Images")
-                .font(.system(size: 20, weight: .semibold))
-            Text("JPEG & PNG → WebP")
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, 18)
-        .padding(.bottom, 12)
+}
+
+/// Keeps the standard centred title bar title visible.
+private struct WindowTitleSetter: NSViewRepresentable {
+    var title: String
+
+    func makeNSView(context: Context) -> TitleWindowView {
+        let view = TitleWindowView()
+        view.title = title
+        return view
     }
 
+    func updateNSView(_ nsView: TitleWindowView, context: Context) {
+        nsView.title = title
+        nsView.applyTitle()
+    }
+}
+
+private final class TitleWindowView: NSView {
+    var title = ""
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        applyTitle()
+    }
+
+    func applyTitle() {
+        guard let window else { return }
+        window.title = title
+        window.titleVisibility = .visible
+    }
 }
 
 private struct StatusBar: View {

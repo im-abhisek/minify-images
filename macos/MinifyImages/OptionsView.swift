@@ -83,8 +83,8 @@ struct OptionsView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .monospacedDigit()
             }
-            // Omit step so macOS does not draw tick marks. The binding still snaps to whole numbers.
-            Slider(value: qualityBinding, in: 0...100)
+            // A custom track so macOS does not draw tick marks. The binding still snaps to whole numbers.
+            QualityGradientSlider(value: qualityBinding)
                 .disabled(model.isRunning)
         }
     }
@@ -94,6 +94,94 @@ struct OptionsView: View {
             get: { Double(self.model.quality) },
             set: { self.model.quality = QualityPolicy.clampedQuality(Int($0.rounded())) }
         )
+    }
+}
+
+/// Full-track gradient: red at 0, yellow through the middle, green by about 80.
+/// 75 lands in the middle of the yellow-to-green blend.
+private struct QualityGradientSlider: View {
+    @Binding var value: Double
+    @Environment(\.isEnabled) private var isEnabled
+
+    private let thumb: CGFloat = 16
+
+    private static let gradient = LinearGradient(
+        stops: [
+            Gradient.Stop(color: .red, location: 0),
+            Gradient.Stop(color: .yellow, location: 0.50),
+            Gradient.Stop(color: .yellow, location: 0.70),
+            Gradient.Stop(color: .green, location: 0.80),
+            Gradient.Stop(color: .green, location: 1)
+        ],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+
+    var body: some View {
+        GeometryReader { geo in
+            let span = max(geo.size.width - self.thumb, 1)
+            let fraction = min(1, max(0, self.value / 100))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Self.gradient)
+                    .frame(height: 6)
+                Circle()
+                    .fill(Color.white)
+                    .overlay(Circle().strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5))
+                    .frame(width: self.thumb, height: self.thumb)
+                    .shadow(color: Color.black.opacity(0.35), radius: 1.5, y: 0.5)
+                    .offset(x: fraction * span)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        guard self.isEnabled else { return }
+                        self.setValue(x: gesture.location.x, span: span)
+                    }
+            )
+        }
+        .frame(height: 22)
+        .opacity(isEnabled ? 1 : 0.4)
+        .focusable(isEnabled)
+        .onKeyPress(.leftArrow) {
+            self.nudge(-1)
+        }
+        .onKeyPress(.downArrow) {
+            self.nudge(-1)
+        }
+        .onKeyPress(.rightArrow) {
+            self.nudge(1)
+        }
+        .onKeyPress(.upArrow) {
+            self.nudge(1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Quality")
+        .accessibilityValue(Text("\(Int(value.rounded()))"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                self.nudge(1)
+            case .decrement:
+                self.nudge(-1)
+            default:
+                break
+            }
+        }
+    }
+
+    private func setValue(x: CGFloat, span: CGFloat) {
+        let clamped = min(max(x - self.thumb / 2, 0), span)
+        self.value = Double(clamped / span) * 100
+    }
+
+    @discardableResult
+    private func nudge(_ delta: Double) -> KeyPress.Result {
+        guard self.isEnabled else { return .ignored }
+        self.value = min(100, max(0, self.value + delta))
+        return .handled
     }
 }
 

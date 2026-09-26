@@ -38,9 +38,9 @@ Product → Test (**⌘U**) runs the Mac unit tests (quality policy, output path
 ### What you get
 
 - Drop JPEG/PNG files **or a folder**. A dropped folder includes JPEG/PNG files in subfolders.
-- One pane: drop files or a folder, or use Add Files. The same pane lists each image and its progress. The pane is a solid rounded surface with a faint hairline, and a soft blue tint while dragging.
+- One pane: drop files or a folder, or use Add Files. The same pane lists each image and its progress. The pane is a solid rounded surface with a faint canvas grid and hairline, and a soft blue tint while dragging. While converting, a slow blue-and-pink wash fades in behind the list.
 - Output reads **Next to originals**, with a **Choose Folder** link. After a folder is chosen the name is shown, a small clear button returns to originals, and **Change** reopens the panel. The folder is remembered until it is cleared.
-- Quality (default 75) sits beside Output on a plain 0–100 slider. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha.
+- Quality (default 75) sits beside Output on a 0–100 slider whose track runs from red through yellow to green. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha. The window title is Minify Images.
 
 Originals are never modified.
 

@@ -7,7 +7,7 @@ struct MinifyImagesApp: App {
     @State private var model = AppModel()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Minify Images") {
             ContentView()
                 .environment(model)
                 .preferredColorScheme(.dark)

@@ -40,10 +40,10 @@ struct ImagePaneView: View {
                 if model.isTargeted {
                     paneShape.strokeBorder(Color.accentColor, lineWidth: 1)
                 } else {
-                    paneShape.strokeBorder(Self.paneRim, lineWidth: 1)
                     ConversionBorderGlow(animate: model.isRunning && !reduceMotion)
                         .opacity(model.isRunning ? 1 : 0)
                         .animation(.easeInOut(duration: 0.8), value: model.isRunning)
+                    paneShape.strokeBorder(Self.paneRim, lineWidth: 1)
                 }
             }
             .allowsHitTesting(false)
@@ -149,19 +149,25 @@ private struct PaneGrid: View {
     }
 }
 
-/// Soft blue and pink drifting around the pane stroke. The fill stays untouched.
-/// First and last stops match so the ring has no seam. Reduce Motion holds the angle still.
+/// Soft blue and pink just inside the pane stroke. Blur is clipped to the
+/// rounded rect so the feather only runs inward. Reduce Motion holds the angle still.
 private struct ConversionBorderGlow: View {
     var animate: Bool
 
     private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+    /// Matches the 1pt black rim so the glow starts on its inner edge.
+    private let rimInset: CGFloat = 1
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 8.0, paused: !self.animate)) { timeline in
             let angle = self.angle(at: timeline.date)
             self.shape
-                .strokeBorder(Self.gradient(angle: angle), lineWidth: 1.5)
-                .blur(radius: 1.5)
+                .inset(by: self.rimInset)
+                .strokeBorder(Self.gradient(angle: angle), lineWidth: 5)
+                .blur(radius: 2)
+                .compositingGroup()
+                .clipShape(self.shape.inset(by: self.rimInset))
+                .clipShape(self.shape)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

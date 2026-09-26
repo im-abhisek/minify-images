@@ -35,12 +35,12 @@ struct ContentView: View {
             return true
         }
         .frame(
-            minWidth: 840,
-            idealWidth: 920,
-            maxWidth: 1600,
-            minHeight: 620,
-            idealHeight: 700,
-            maxHeight: 1200
+            minWidth: 720,
+            idealWidth: 800,
+            maxWidth: 1200,
+            minHeight: 480,
+            idealHeight: 560,
+            maxHeight: 900
         )
     }
 
@@ -152,5 +152,5 @@ private struct StatusBar: View {
 #Preview {
     ContentView()
         .environment(AppModel())
-        .frame(width: 920, height: 700)
+        .frame(width: 800, height: 560)
 }

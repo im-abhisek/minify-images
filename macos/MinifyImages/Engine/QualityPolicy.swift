@@ -74,6 +74,11 @@ enum EncodeRecipe: Equatable, Sendable {
 }
 
 enum QualityPolicy {
+    /// libwebp accepts 0...100 (`WebPConfigPreset` / `WebPValidateConfig`). 0 is valid, so the floor stays 0.
+    static func clampedQuality(_ quality: Int) -> Int {
+        min(100, max(0, quality))
+    }
+
     static func recipe(
         kind: SourceKind,
         hasAlpha: Bool,
@@ -83,14 +88,15 @@ enum QualityPolicy {
     ) -> EncodeRecipe {
         let forceLossless = lossless
         let pngPreserve = kind == .png && !photo && !forceLossless
+        let q = clampedQuality(quality)
 
         if forceLossless || (pngPreserve && hasAlpha) {
             return .lossless(exact: hasAlpha)
         }
         if pngPreserve {
-            return .nearLossless(quality: quality)
+            return .nearLossless(quality: q)
         }
-        return .photo(quality: quality)
+        return .photo(quality: q)
     }
 
     static func recipe(kind: SourceKind, hasAlpha: Bool, settings: ConversionSettings) -> EncodeRecipe {

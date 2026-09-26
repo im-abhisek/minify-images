@@ -7,7 +7,7 @@ enum WebPEncoder {
         switch recipe {
         case .photo(let quality):
             options.mode = MINIFY_WEBP_MODE_PHOTO
-            options.quality = Float(quality)
+            options.quality = Self.webpQuality(quality)
             options.exact = 0
         case .lossless(let exact):
             options.mode = MINIFY_WEBP_MODE_LOSSLESS
@@ -15,7 +15,7 @@ enum WebPEncoder {
             options.exact = exact ? 1 : 0
         case .nearLossless(let quality):
             options.mode = MINIFY_WEBP_MODE_NEAR_LOSSLESS
-            options.quality = Float(quality)
+            options.quality = Self.webpQuality(quality)
             options.exact = 0
         }
 
@@ -39,6 +39,11 @@ enum WebPEncoder {
         }
         defer { minify_webp_free(outBuf) }
         return Data(bytes: outBuf, count: outLen)
+    }
+
+    /// 0...100 inclusive. libwebp rejects values outside that range and accepts 0.
+    private static func webpQuality(_ quality: Int) -> Float {
+        Float(QualityPolicy.clampedQuality(quality))
     }
 
     enum EncodeError: LocalizedError {

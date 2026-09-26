@@ -61,6 +61,43 @@ final class QualityPolicyTests: XCTestCase {
         XCTAssertEqual(recipe, .lossless(exact: false))
     }
 
+    func testQualityZeroAndHundredPassThrough() {
+        let low = QualityPolicy.recipe(
+            kind: .jpeg,
+            hasAlpha: false,
+            quality: 0,
+            lossless: false,
+            photo: false
+        )
+        XCTAssertEqual(low, .photo(quality: 0))
+
+        let high = QualityPolicy.recipe(
+            kind: .jpeg,
+            hasAlpha: false,
+            quality: 100,
+            lossless: false,
+            photo: false
+        )
+        XCTAssertEqual(high, .photo(quality: 100))
+
+        let opaquePNG = QualityPolicy.recipe(
+            kind: .png,
+            hasAlpha: false,
+            quality: 0,
+            lossless: false,
+            photo: false
+        )
+        XCTAssertEqual(opaquePNG, .nearLossless(quality: 0))
+    }
+
+    func testQualityClampsToLibwebpRangeWithoutRaisingZero() {
+        XCTAssertEqual(QualityPolicy.clampedQuality(0), 0)
+        XCTAssertEqual(QualityPolicy.clampedQuality(75), 75)
+        XCTAssertEqual(QualityPolicy.clampedQuality(100), 100)
+        XCTAssertEqual(QualityPolicy.clampedQuality(-4), 0)
+        XCTAssertEqual(QualityPolicy.clampedQuality(140), 100)
+    }
+
     func testSettingsPreserveMapsToCLIDefaults() {
         let settings = ConversionSettings()
         XCTAssertEqual(settings.quality, 90)

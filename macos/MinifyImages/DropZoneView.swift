@@ -48,7 +48,7 @@ struct DropZoneView: View {
             .padding(16)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .frame(minHeight: 220)
+        .frame(minHeight: 150)
         .animation(.easeInOut(duration: 0.16), value: model.isTargeted)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Drop JPEG or PNG files, or a folder")

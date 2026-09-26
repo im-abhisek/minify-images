@@ -20,7 +20,7 @@ struct MinifyImagesApp: App {
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified)
         .windowResizability(.contentSize)
-        .defaultSize(width: 920, height: 700)
+        .defaultSize(width: 800, height: 560)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Open…") {

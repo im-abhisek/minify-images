@@ -118,7 +118,7 @@ Originals are never modified.
 | PNG, no alpha | **near-lossless** at quality 90 | Screenshots and graphics stay sharp |
 | Size | **no resize** | CLI: pass `--max 2400` if the file is huge. The Mac app does not resize. |
 
-`--quality` / the app slider only changes the photo / near-lossless paths (1–100):
+`--quality` (CLI, 1–100) and the app slider (0–100) only change the photo / near-lossless paths:
 
 - **90** — default. Safe for a header image.
 - **80** — still sharp, smaller. Fine for most posts.

@@ -11,8 +11,8 @@ struct OptionsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 12)
-        .padding(.bottom, 10)
+        .padding(.top, 24)
+        .padding(.bottom, 24)
     }
 
     private var outputColumn: some View {
@@ -47,7 +47,7 @@ struct OptionsView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .monospacedDigit()
             }
-            Slider(value: qualityBinding, in: 70...100, step: 1)
+            Slider(value: qualityBinding, in: 0...100, step: 1)
                 .disabled(model.isRunning)
         }
     }
@@ -55,7 +55,7 @@ struct OptionsView: View {
     private var qualityBinding: Binding<Double> {
         Binding(
             get: { Double(self.model.quality) },
-            set: { self.model.quality = Int($0.rounded()) }
+            set: { self.model.quality = QualityPolicy.clampedQuality(Int($0.rounded())) }
         )
     }
 }

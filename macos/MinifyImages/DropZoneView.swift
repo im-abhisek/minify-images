@@ -115,11 +115,11 @@ struct ImagePaneView: View {
     }
 }
 
-/// Thin canvas lines over the pane fill. About 5% white, 18pt apart.
+/// Hairline canvas seams over the pane fill. 32pt cells, faint black.
 private struct PaneGrid: View {
     var body: some View {
         Canvas { context, size in
-            let spacing: CGFloat = 18
+            let spacing: CGFloat = 32
             var path = Path()
             var x = spacing / 2
             while x < size.width {
@@ -133,7 +133,7 @@ private struct PaneGrid: View {
                 path.addLine(to: CGPoint(x: size.width, y: y))
                 y += spacing
             }
-            context.stroke(path, with: .color(Color.white.opacity(0.05)), lineWidth: 1)
+            context.stroke(path, with: .color(Color.black.opacity(0.20)), lineWidth: 1)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

@@ -9,7 +9,7 @@ struct ContentView: View {
         VStack(spacing: 0) {
             ImagePaneView()
                 .padding(.horizontal, 20)
-                .padding(.top, 12)
+                .padding(.top, 20)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             OptionsView()

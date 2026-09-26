@@ -1,65 +1,5 @@
 import SwiftUI
 
-struct JobListView: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(headerTitle)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.4)
-                Spacer()
-                if let skipped = model.skippedNotice {
-                    Text(skipped)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.orange)
-                        .lineLimit(1)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-
-            if model.jobs.isEmpty {
-                VStack(spacing: 6) {
-                    Spacer()
-                    Text("No images yet")
-                        .font(.system(size: 13, weight: .medium))
-                    Text("Drop files or a folder on the left.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 16)
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(model.jobs) { job in
-                            JobRowView(job: job)
-                            if job.id != model.jobs.last?.id {
-                                Divider().padding(.leading, 16)
-                            }
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.bottom, 8)
-    }
-
-    private var headerTitle: String {
-        if model.jobs.isEmpty { return "Images" }
-        return model.jobs.count == 1 ? "1 image" : "\(model.jobs.count) images"
-    }
-}
-
 struct JobRowView: View {
     @Environment(AppModel.self) private var model
     let job: ImageJob
@@ -84,10 +24,23 @@ struct JobRowView: View {
 
             if case .succeeded(let result) = job.status {
                 Button("Show") {
-                    model.reveal(result.destination)
+                    self.model.reveal(result.destination)
                 }
                 .buttonStyle(MinifyButtonStyle(compact: true))
             }
+
+            Button {
+                self.model.removeJob(id: job.id)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.secondary.opacity(model.isRunning ? 0.35 : 0.85))
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.isRunning)
+            .help(model.isRunning ? "Wait until conversion finishes" : "Remove")
+            .accessibilityLabel("Remove \(job.name)")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)

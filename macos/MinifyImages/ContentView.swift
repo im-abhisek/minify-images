@@ -8,19 +8,9 @@ struct ContentView: View {
         VStack(spacing: 0) {
             header
 
-            HStack(alignment: .top, spacing: 14) {
-                DropZoneView()
-                    .frame(width: 220)
-                    .frame(maxHeight: .infinity)
-                JobListView()
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(Color.white.opacity(0.04))
-                    )
-            }
-            .padding(.horizontal, 20)
-            .frame(maxHeight: .infinity)
+            ImagePaneView()
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             OptionsView()
             StatusBar()

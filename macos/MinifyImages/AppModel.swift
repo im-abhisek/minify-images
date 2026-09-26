@@ -111,6 +111,18 @@ final class AppModel {
         refreshJobs(resetResults: true)
     }
 
+    /// Ignores the request while a batch is running so the in-progress count stays on the original list.
+    func removeJob(id: UUID) {
+        guard !isRunning else { return }
+        jobs.removeAll { $0.id == id }
+        droppedInputs = jobs.map(\.source)
+        if jobs.isEmpty {
+            skippedNotice = nil
+        }
+        lastSummary = nil
+        statusMessage = nil
+    }
+
     func refreshJobs(resetResults: Bool) {
         let previous: [String: ImageJob] = resetResults ? [:] : Dictionary(
             uniqueKeysWithValues: jobs.map { ($0.source.standardizedFileURL.path, $0) }
@@ -252,7 +264,7 @@ final class AppModel {
         panel.allowsMultipleSelection = true
         panel.canCreateDirectories = false
         panel.allowedContentTypes = [.jpeg, .png, .folder]
-        panel.message = "Choose JPEG or PNG images, or a folder of them"
+        panel.message = "Add JPEG or PNG images, or a folder of them"
         panel.prompt = "Add"
         guard panel.runModal() == .OK else { return }
         addDroppedURLs(panel.urls)

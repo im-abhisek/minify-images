@@ -2,7 +2,19 @@ import Foundation
 import WebPBridge
 
 enum WebPEncoder {
+    static func requestCancel() {
+        minify_webp_request_cancel()
+    }
+
+    static var generation: Int32 {
+        minify_webp_current_generation()
+    }
+
     static func encode(image: DecodedImage, recipe: EncodeRecipe) throws -> Data {
+        let generation = Self.generation
+        if Task.isCancelled {
+            throw CancellationError()
+        }
         var options = MinifyWebPEncodeOptions()
         switch recipe {
         case .photo(let quality):
@@ -34,6 +46,12 @@ enum WebPEncoder {
             )
         }
 
+        if status == -7 || Self.generation != generation {
+            if let outBuf {
+                minify_webp_free(outBuf)
+            }
+            throw CancellationError()
+        }
         guard status == 0, let outBuf, outLen > 0 else {
             throw EncodeError.failed(code: Int(status))
         }

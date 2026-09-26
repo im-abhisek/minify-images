@@ -10,7 +10,8 @@ final class AppModel {
     var jobs: [ImageJob] = []
     var isTargeted = false
     var quality = 75
-    var pngStrategy: PNGStrategy = .preserve
+    /// The PNG mode picker is gone. Lossy WebP at `quality`, with the alpha plane kept.
+    var pngStrategy: PNGStrategy = .photo
     var outputMode: OutputMode = .besideOriginals
     var outputFolder: URL?
     var isRunning = false
@@ -20,6 +21,7 @@ final class AppModel {
     private(set) var runningQuality = 75
 
     private var runningTask: Task<Void, Never>?
+    private var activeGeneration: Int32 = 0
     private var isPresentingPanel = false
     private var scopedInputs: [URL] = []
     private var scopedOutputURL: URL?
@@ -208,6 +210,7 @@ final class AppModel {
 
     func cancel() {
         let wasRunning = isRunning
+        WebPEncoder.requestCancel()
         runningTask?.cancel()
         runningTask = nil
         isRunning = false
@@ -235,34 +238,60 @@ final class AppModel {
 
         let snapshot = jobs
         let currentSettings = settings
+        let generation = WebPEncoder.generation
+        self.activeGeneration = generation
         runningTask = Task.detached(priority: .userInitiated) { [weak self] in
             var totalIn = 0
             var totalOut = 0
             var wrote = 0
             var failed = 0
 
+            var cancelled = false
             for job in snapshot {
-                guard !Task.isCancelled else { break }
-                await self?.markConverting(id: job.id)
+                if Task.isCancelled || WebPEncoder.generation != generation {
+                    cancelled = true
+                    break
+                }
+                await self?.markConverting(id: job.id, generation: generation)
+                if Task.isCancelled || WebPEncoder.generation != generation {
+                    cancelled = true
+                    await self?.revertToQueued(id: job.id, generation: generation)
+                    break
+                }
                 do {
                     let result = try ConversionService.convert(
                         source: job.source,
                         root: job.root,
                         settings: currentSettings
                     )
+                    if Task.isCancelled || WebPEncoder.generation != generation {
+                        cancelled = true
+                        try? FileManager.default.removeItem(at: result.destination)
+                        await self?.revertToQueued(id: job.id, generation: generation)
+                        break
+                    }
                     totalIn += result.sourceBytes
                     totalOut += result.destBytes
                     wrote += 1
-                    await self?.markSucceeded(id: job.id, result: result)
+                    await self?.markSucceeded(id: job.id, result: result, generation: generation)
                 } catch is CancellationError {
+                    cancelled = true
+                    await self?.revertToQueued(id: job.id, generation: generation)
                     break
                 } catch {
                     failed += 1
-                    await self?.markFailed(id: job.id, message: error.localizedDescription)
+                    await self?.markFailed(id: job.id, message: error.localizedDescription, generation: generation)
                 }
             }
 
-            await self?.finishRun(wrote: wrote, failed: failed, totalIn: totalIn, totalOut: totalOut, cancelled: Task.isCancelled)
+            await self?.finishRun(
+                wrote: wrote,
+                failed: failed,
+                totalIn: totalIn,
+                totalOut: totalOut,
+                cancelled: cancelled || Task.isCancelled,
+                generation: generation
+            )
         }
     }
 
@@ -404,22 +433,34 @@ final class AppModel {
         return nil
     }
 
-    private func markConverting(id: UUID) {
-        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        jobs[index].status = .converting
+    private func markConverting(id: UUID, generation: Int32) {
+        guard self.isRunning, generation == self.activeGeneration else { return }
+        guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+        self.jobs[index].status = .converting
     }
 
-    private func markSucceeded(id: UUID, result: ConversionResult) {
-        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        jobs[index].status = .succeeded(result)
+    private func revertToQueued(id: UUID, generation: Int32) {
+        guard generation == self.activeGeneration else { return }
+        guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+        if self.jobs[index].status == .converting {
+            self.jobs[index].status = .queued
+        }
     }
 
-    private func markFailed(id: UUID, message: String) {
-        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        jobs[index].status = .failed(message)
+    private func markSucceeded(id: UUID, result: ConversionResult, generation: Int32) {
+        guard self.isRunning, generation == self.activeGeneration else { return }
+        guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+        self.jobs[index].status = .succeeded(result)
     }
 
-    private func finishRun(wrote: Int, failed: Int, totalIn: Int, totalOut: Int, cancelled: Bool) {
+    private func markFailed(id: UUID, message: String, generation: Int32) {
+        guard generation == self.activeGeneration else { return }
+        guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+        self.jobs[index].status = .failed(message)
+    }
+
+    private func finishRun(wrote: Int, failed: Int, totalIn: Int, totalOut: Int, cancelled: Bool, generation: Int32) {
+        guard generation == self.activeGeneration else { return }
         isRunning = false
         runningTask = nil
         if cancelled {

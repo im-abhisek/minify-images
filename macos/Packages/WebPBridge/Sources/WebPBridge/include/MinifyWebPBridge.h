@@ -34,6 +34,10 @@ int minify_webp_encode_rgba(
 
 void minify_webp_free(uint8_t *buf);
 
+/// Bumps the cancel generation. The encode in progress aborts; a later encode does not.
+void minify_webp_request_cancel(void);
+int minify_webp_current_generation(void);
+
 #ifdef __cplusplus
 }
 #endif

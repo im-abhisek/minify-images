@@ -149,47 +149,69 @@ private struct PaneGrid: View {
     }
 }
 
-/// Faint blue and pink tint in the bottom of the pane, drawn with the fill.
-/// Reduce Motion holds the drift still.
+/// Faint blue and pink along the bottom of the pane. The top edge is a slow convex wave.
+/// Reduce Motion keeps the convex shape and does not drift.
 private struct ConversionBottomWash: View {
     var animate: Bool
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !self.animate)) { timeline in
-            let drift = self.drift(at: timeline.date)
-            GeometryReader { geo in
-                let band = geo.size.height * 0.28
-                LinearGradient(
-                    colors: [
-                        Color.blue.opacity(0.14),
-                        Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.11),
-                        Color.blue.opacity(0.09)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: geo.size.width * 1.35, height: band)
-                .offset(x: -geo.size.width * 0.175 + drift * geo.size.width * 0.1)
-                .frame(width: geo.size.width, height: geo.size.height, alignment: .bottomLeading)
-                .mask(alignment: .bottom) {
-                    LinearGradient(
-                        colors: [.clear, .black],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: band)
-                }
+        TimelineView(.animation(minimumInterval: 1.0 / 8.0, paused: !self.animate)) { timeline in
+            let phase = self.phase(at: timeline.date)
+            Canvas { context, size in
+                Self.draw(context: &context, size: size, animate: self.animate, phase: phase)
             }
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    private func drift(at date: Date) -> CGFloat {
+    private func phase(at date: Date) -> Double {
         guard self.animate else { return 0 }
-        let cycle = 18.0
-        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
-        return CGFloat(sin(phase * 2 * Double.pi))
+        let cycle = 9.0
+        return date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
+    }
+
+    private static func draw(context: inout GraphicsContext, size: CGSize, animate: Bool, phase: Double) {
+        guard size.width > 1, size.height > 1 else { return }
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: size.height))
+        let step: CGFloat = 8
+        var x: CGFloat = 0
+        while x <= size.width {
+            let y = size.height - Self.bandHeight(x: x, size: size, animate: animate, phase: phase)
+            path.addLine(to: CGPoint(x: x, y: y))
+            x += step
+        }
+        let endY = size.height - Self.bandHeight(x: size.width, size: size, animate: animate, phase: phase)
+        path.addLine(to: CGPoint(x: size.width, y: endY))
+        path.addLine(to: CGPoint(x: size.width, y: size.height))
+        path.closeSubpath()
+
+        var soft = context
+        soft.addFilter(.blur(radius: 16))
+        soft.fill(
+            path,
+            with: .linearGradient(
+                Gradient(colors: [
+                    Color.blue.opacity(0.14),
+                    Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.11),
+                    Color.blue.opacity(0.09)
+                ]),
+                startPoint: CGPoint(x: 0, y: size.height),
+                endPoint: CGPoint(x: size.width, y: size.height)
+            )
+        )
+    }
+
+    /// Sides stay lower. Two slow sines ripple the top while a batch is running.
+    private static func bandHeight(x: CGFloat, size: CGSize, animate: Bool, phase: Double) -> CGFloat {
+        let t = Double(x / max(size.width, 1))
+        let convex = 4 * t * (1 - t)
+        let base = size.height * (0.14 + 0.12 * convex)
+        guard animate else { return base }
+        let wave = sin(t * 2 * Double.pi * 1.25 + phase * 2 * Double.pi) * 0.05
+            + sin(t * 2 * Double.pi * 2.6 - phase * 2 * Double.pi * 0.67) * 0.028
+        return max(size.height * 0.05, base + size.height * wave)
     }
 }
 

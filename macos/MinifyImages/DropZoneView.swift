@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One pane: an empty drop target, or the image list once files are added.
+/// One pane: an empty drop target, or a thumbnail grid once files are added.
 struct ImagePaneView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -94,20 +94,24 @@ struct ImagePaneView: View {
             .padding(.bottom, 6)
 
             ScrollView {
-                LazyVStack(spacing: 0) {
+                LazyVGrid(columns: tileColumns, spacing: 12) {
                     ForEach(model.jobs) { job in
-                        JobRowView(job: job)
-                        if job.id != model.jobs.last?.id {
-                            Divider().padding(.leading, 16)
-                        }
+                        JobTileView(job: job)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
             }
             .scrollContentBackground(.hidden)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 8)
+    }
+
+    private var tileColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 120, maximum: 140), spacing: 12)]
     }
 
     private var headerTitle: String {
@@ -187,7 +191,7 @@ private struct ConversionWash: View {
 }
 
 private struct AddFilesButton: View {
-    /// Filled grey button in the empty pane. Plain blue text once the list is showing.
+    /// Filled grey button in the empty pane. Plain blue text once thumbnails are showing.
     var filled = true
     @Environment(AppModel.self) private var model
 

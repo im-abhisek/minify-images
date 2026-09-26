@@ -1,100 +1,161 @@
+import AppKit
 import SwiftUI
 
-struct JobRowView: View {
+struct JobTileView: View {
     @Environment(AppModel.self) private var model
     let job: ImageJob
 
+    @State private var preview: NSImage?
+    @State private var byteCount: Int?
+    @State private var isHovering = false
+    @FocusState private var removeFocused: Bool
+
     var body: some View {
-        HStack(spacing: 12) {
-            statusMark
-                .frame(width: 16)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(job.name)
-                    .font(.system(size: 13, weight: .medium))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(detail)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(detailColor)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 8)
-
-            if case .succeeded(let result) = job.status {
-                Button("Show") {
-                    self.model.reveal(result.destination)
-                }
-                .buttonStyle(MinifyButtonStyle(compact: true))
-            }
-
-            Button {
-                self.model.removeJob(id: job.id)
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.secondary.opacity(model.isRunning ? 0.35 : 0.85))
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.plain)
-            .disabled(model.isRunning)
-            .help(model.isRunning ? "Wait until conversion finishes" : "Remove")
-            .accessibilityLabel("Remove \(job.name)")
+        VStack(alignment: .leading, spacing: 6) {
+            thumbnail
+            Text(job.name)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text(caption)
+                .font(.system(size: 11))
+                .foregroundStyle(captionColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            self.isHovering = hovering
+        }
+        .task(id: self.job.source) {
+            await self.loadThumbnail()
+        }
         .contextMenu {
             Button("Reveal original in Finder") {
-                model.reveal(job.source)
+                self.model.reveal(self.job.source)
             }
-            if case .succeeded(let result) = job.status {
+            if case .succeeded(let result) = self.job.status {
                 Button("Reveal WebP in Finder") {
-                    model.reveal(result.destination)
+                    self.model.reveal(result.destination)
                 }
             }
         }
+        .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder
-    private var statusMark: some View {
-        switch job.status {
-        case .queued:
-            Circle()
-                .stroke(Color.secondary.opacity(0.45), lineWidth: 1.4)
-                .frame(width: 10, height: 10)
-        case .converting:
-            YellowSpinner(side: 12)
-        case .succeeded:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.system(size: 14))
-        case .failed:
-            Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(.red)
-                .font(.system(size: 14))
+    private var thumbnail: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.opacity(0.38)
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    if let preview {
+                        Image(nsImage: preview)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                }
+                .overlay {
+                    if case .converting = job.status {
+                        ZStack {
+                            Color.black.opacity(0.28)
+                            YellowSpinner(side: 16)
+                        }
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if case .succeeded = job.status {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 15))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(.white, .green)
+                            .shadow(color: Color.black.opacity(0.35), radius: 1, y: 0.5)
+                            .padding(5)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityLabel(job.name)
+
+            removeButton
+                .padding(6)
         }
+        .frame(maxWidth: .infinity)
     }
 
-    private var detail: String {
+    private var removeButton: some View {
+        Button {
+            self.model.removeJob(id: self.job.id)
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(Color.white.opacity(self.model.isRunning ? 0.55 : 1))
+                .frame(width: 18, height: 18)
+                .background(Circle().fill(Color.black.opacity(0.55)))
+        }
+        .buttonStyle(.plain)
+        .opacity(self.showsRemove ? (self.model.isRunning ? 0.45 : 1) : 0)
+        .allowsHitTesting(self.showsRemove)
+        .disabled(self.model.isRunning)
+        .focused(self.$removeFocused)
+        .help(self.model.isRunning ? "Wait until conversion finishes" : "Remove")
+        .accessibilityLabel("Remove \(job.name)")
+    }
+
+    private var showsRemove: Bool {
+        self.isHovering || self.removeFocused
+    }
+
+    private var caption: String {
         switch job.status {
-        case .queued:
-            return job.source.deletingLastPathComponent().path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
-        case .converting:
-            return "Converting…"
         case .succeeded(let result):
-            let sizes = "\(ByteFormat.string(result.sourceBytes)) → \(ByteFormat.string(result.destBytes))  \(ByteFormat.savings(from: result.sourceBytes, to: result.destBytes))"
-            let note = result.destBytes > result.sourceBytes ? "  ·  larger than original" : ""
-            return "\(sizes)  ·  \(result.label)\(note)"
+            let saved = ByteFormat.savings(from: result.sourceBytes, to: result.destBytes)
+            return "\(Self.sizeText(result.sourceBytes)) to \(Self.sizeText(result.destBytes)) · \(saved)"
         case .failed(let message):
             return message
+        case .queued, .converting:
+            if let byteCount {
+                return Self.sizeText(byteCount)
+            }
+            return "…"
         }
     }
 
-    private var detailColor: Color {
+    private var captionColor: Color {
         switch job.status {
-        case .failed: return .red
-        default: return .secondary
+        case .succeeded(let result):
+            return result.destBytes > result.sourceBytes ? .yellow : .green
+        case .failed:
+            return .red
+        case .queued, .converting:
+            return .secondary
         }
+    }
+
+    private func loadThumbnail() async {
+        let url = self.job.source
+        await ThumbnailStore.shared.ensureLoaded(url: url)
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        guard let record = ThumbnailStore.shared.record(for: path) else { return }
+        self.byteCount = record.byteCount
+        if let image = record.image {
+            self.preview = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+        }
+    }
+
+    /// "2.4 MB", "610 KB", "1.5 KB", or "820 B".
+    private static func sizeText(_ bytes: Int) -> String {
+        let posix = Locale(identifier: "en_US_POSIX")
+        if bytes >= 1024 * 1024 {
+            return String(format: "%.1f MB", locale: posix, Double(bytes) / (1024 * 1024))
+        }
+        if bytes >= 1024 {
+            let kb = Double(bytes) / 1024
+            if kb >= 10 {
+                return String(format: "%.0f KB", locale: posix, kb)
+            }
+            return String(format: "%.1f KB", locale: posix, kb)
+        }
+        return "\(bytes) B"
     }
 }

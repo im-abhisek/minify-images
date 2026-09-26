@@ -92,6 +92,7 @@ final class AppModel {
     func addDroppedURLs(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         var merged = droppedInputs
+        var added = false
         for url in urls {
             retainScope(url)
             let standardized = url.resolvingSymlinksInPath().standardizedFileURL
@@ -100,8 +101,10 @@ final class AppModel {
             }
             if !merged.contains(where: { $0.standardizedFileURL == standardized }) {
                 merged.append(standardized)
+                added = true
             }
         }
+        guard added else { return }
         droppedInputs = merged
         refreshJobs(resetResults: true)
     }

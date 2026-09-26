@@ -15,8 +15,10 @@ struct MinifyImagesApp: App {
                 .background {
                     MainWindowBridge(model: model)
                 }
-                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
                 .environment(model)
+                .onOpenURL { url in
+                    self.appDelegate.present(urls: [url])
+                }
                 .onAppear {
                     NSApp.appearance = NSAppearance(named: .darkAqua)
                     NSWindow.allowsAutomaticWindowTabbing = false
@@ -54,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var model: AppModel?
     var showMainWindow: (@MainActor () -> Void)?
     private var pendingURLs: [URL] = []
+    private var queuedOpenURLs: [URL] = []
+    private var openFlushScheduled = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
@@ -94,7 +98,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @MainActor
-    private func present(urls: [URL]) {
+    func present(urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        self.queuedOpenURLs.append(contentsOf: urls)
+        guard !self.openFlushScheduled else { return }
+        self.openFlushScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.openFlushScheduled = false
+            let batch = self.queuedOpenURLs
+            self.queuedOpenURLs = []
+            self.flushOpenedURLs(batch)
+        }
+    }
+
+    /// One batch for a burst of `onOpenURL` callbacks and `application(_:open:)`.
+    @MainActor
+    private func flushOpenedURLs(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
         if let model = self.model {
             model.addDroppedURLs(urls)
         } else {
@@ -102,6 +123,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.showMainWindow?()
         self.orderMainWindowFront()
+        // openWindow is async; order front again once a closed window has reappeared.
+        DispatchQueue.main.async { [weak self] in
+            self?.orderMainWindowFront()
+        }
     }
 
     @MainActor

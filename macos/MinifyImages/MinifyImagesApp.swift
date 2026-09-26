@@ -12,11 +12,11 @@ struct MinifyImagesApp: App {
         Window("Minify Images", id: "main") {
             ContentView()
                 .preferredColorScheme(.dark)
-                .environment(model)
                 .background {
-                    MainWindowBridge()
+                    MainWindowBridge(model: model)
                 }
                 .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
+                .environment(model)
                 .onAppear {
                     NSApp.appearance = NSAppearance(named: .darkAqua)
                     NSWindow.allowsAutomaticWindowTabbing = false
@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// Captures openWindow while the main window exists so a later external open can bring it back.
 private struct MainWindowBridge: View {
     @Environment(\.openWindow) private var openWindow
-    @Environment(AppModel.self) private var model
+    var model: AppModel
 
     var body: some View {
         Color.clear
@@ -125,7 +125,8 @@ private struct MainWindowBridge: View {
             .onAppear {
                 guard let delegate = NSApp.delegate as? AppDelegate else { return }
                 let openWindow = self.openWindow
-                delegate.attach(model: self.model) { @MainActor in
+                let model = self.model
+                delegate.attach(model: model) { @MainActor in
                     openWindow(id: "main")
                 }
             }

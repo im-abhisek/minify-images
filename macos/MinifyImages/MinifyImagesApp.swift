@@ -10,7 +10,9 @@ struct MinifyImagesApp: App {
         WindowGroup {
             ContentView()
                 .environment(model)
+                .preferredColorScheme(.dark)
                 .onAppear {
+                    NSApp.appearance = NSAppearance(named: .darkAqua)
                     appDelegate.model = model
                     NSWindow.allowsAutomaticWindowTabbing = false
                 }
@@ -18,7 +20,7 @@ struct MinifyImagesApp: App {
         .windowStyle(.automatic)
         .windowToolbarStyle(.unified)
         .windowResizability(.contentSize)
-        .defaultSize(width: 760, height: 640)
+        .defaultSize(width: 920, height: 700)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("Open…") {
@@ -45,6 +47,12 @@ struct MinifyImagesApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var model: AppModel?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor in
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true

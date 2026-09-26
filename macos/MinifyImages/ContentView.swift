@@ -7,77 +7,84 @@ struct ContentView: View {
         @Bindable var model = model
         VStack(spacing: 0) {
             header
-            DropZoneView()
-                .padding(.horizontal, 24)
-                .padding(.top, 4)
-                .padding(.bottom, 20)
 
-            if !model.jobs.isEmpty {
-                Divider().opacity(0.45)
+            HStack(alignment: .stretch, spacing: 14) {
+                DropZoneView()
+                    .frame(width: 220)
                 JobListView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white.opacity(0.04))
+                    )
             }
+            .padding(.horizontal, 20)
+            .frame(maxHeight: .infinity)
 
-            Divider().opacity(0.45)
             OptionsView()
-            footer
+            actionBar
+            StatusBar()
         }
         .background(Color(nsColor: .windowBackgroundColor))
-        .onDrop(of: [.fileURL], isTargeted: $model.isTargeted) { providers in
+        .preferredColorScheme(.dark)
+        .onDrop(of: [.fileURL, .folder, .directory], isTargeted: $model.isTargeted) { providers in
             Task {
                 let urls = await DroppedFileLoader.urls(from: providers)
                 model.addDroppedURLs(urls)
             }
             return true
         }
-        .frame(minWidth: 700, idealWidth: 760, minHeight: 560, idealHeight: 640)
+        .frame(
+            minWidth: 840,
+            idealWidth: 920,
+            maxWidth: 1600,
+            minHeight: 620,
+            idealHeight: 700,
+            maxHeight: 1200
+        )
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Minify Images")
-                    .font(.system(size: 20, weight: .semibold, design: .default))
-                Text("JPEG & PNG → high-quality WebP for your blog")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if model.isRunning {
-                ProgressView()
-                    .controlSize(.small)
-                    .padding(.trailing, 4)
-            }
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Minify Images")
+                .font(.system(size: 20, weight: .semibold))
+            Text("JPEG & PNG → WebP")
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 12)
     }
 
-    private var footer: some View {
-        HStack(spacing: 12) {
-            footerStatus
+    private var actionBar: some View {
+        HStack(spacing: 10) {
             Spacer()
             if !model.jobs.isEmpty {
                 Button("Clear") {
                     model.clear()
                 }
                 .disabled(model.isRunning)
+                .buttonStyle(MinifyButtonStyle())
             }
             if model.isRunning {
                 Button("Cancel") {
                     model.cancel()
                 }
                 .keyboardShortcut(.escape, modifiers: [])
+                .buttonStyle(MinifyButtonStyle())
             }
             Button(model.isRunning ? "Converting…" : convertTitle) {
                 model.convert()
             }
             .keyboardShortcut(.return, modifiers: .command)
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(MinifyButtonStyle())
             .disabled(!model.canConvert)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.horizontal, 20)
+        .padding(.top, 2)
+        .padding(.bottom, 12)
     }
 
     private var convertTitle: String {
@@ -85,59 +92,73 @@ struct ContentView: View {
         if n == 0 { return "Convert" }
         return n == 1 ? "Convert 1 image" : "Convert \(n) images"
     }
+}
 
-    @ViewBuilder
-    private var footerStatus: some View {
-        if let summary = model.lastSummary {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 8) {
-                    Image(systemName: summary.failed == 0 ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
-                        .foregroundStyle(summary.failed == 0 ? Color.green : Color.orange)
-                    Text(summaryLine(summary))
-                        .font(.system(size: 12.5, weight: .medium))
-                    if summary.converted > 0 {
-                        Button("Show in Finder") {
-                            model.revealOutputs()
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.tint)
+private struct StatusBar: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider().opacity(0.35)
+            HStack(spacing: 8) {
+                statusMark
+                    .frame(width: 16, height: 16)
+                Text(statusText)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(emphasize ? Color.primary : Color.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if let summary = model.lastSummary, summary.converted > 0, !model.isRunning {
+                    Button("Show in Finder") {
+                        model.revealOutputs()
                     }
+                    .buttonStyle(MinifyButtonStyle(compact: true))
                 }
-                Text(summary.destinationNote)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
             }
-        } else if let reason = model.convertDisabledReason, !model.isRunning {
-            Text(reason)
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
-        } else if model.isRunning {
-            let done = model.completedCount + model.failedCount
-            Text("Converting \(min(done + 1, model.jobs.count)) of \(model.jobs.count)…")
-                .font(.system(size: 12.5))
-                .foregroundStyle(.secondary)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
         }
+        .background(Color.white.opacity(0.05))
     }
 
-    private func summaryLine(_ summary: RunSummary) -> String {
-        var parts: [String] = []
-        if summary.converted > 0 {
-            parts.append("\(summary.converted) converted")
-            parts.append("\(ByteFormat.string(summary.totalIn)) → \(ByteFormat.string(summary.totalOut)) (\(ByteFormat.savings(from: summary.totalIn, to: summary.totalOut)))")
+    private var emphasize: Bool {
+        model.isRunning || model.lastSummary != nil
+    }
+
+    private var statusText: String {
+        if model.isRunning {
+            return model.inProgressStatus
         }
-        if summary.failed > 0 {
-            parts.append("\(summary.failed) failed")
+        if let summary = model.lastSummary {
+            return model.doneStatus(summary)
         }
-        if parts.isEmpty {
-            return "Nothing converted"
+        if let message = model.statusMessage {
+            return message
         }
-        return parts.joined(separator: "  ·  ")
+        if let reason = model.convertDisabledReason {
+            return reason
+        }
+        return "Ready"
+    }
+
+    @ViewBuilder
+    private var statusMark: some View {
+        if model.isRunning {
+            YellowSpinner()
+        } else if model.lastSummary != nil {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 14))
+                .foregroundStyle(Color.green)
+                .accessibilityLabel("Done")
+        } else {
+            Color.clear
+        }
     }
 }
 
 #Preview {
     ContentView()
         .environment(AppModel())
-        .frame(width: 760, height: 640)
+        .frame(width: 920, height: 700)
 }

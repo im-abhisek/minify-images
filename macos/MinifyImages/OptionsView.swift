@@ -2,7 +2,7 @@ import SwiftUI
 
 struct OptionsView: View {
     @Environment(AppModel.self) private var model
-    @State private var showAdvanced = false
+    @State private var showAdvanced = true
 
     var body: some View {
         @Bindable var model = model
@@ -13,14 +13,14 @@ struct OptionsView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     qualityRow
                     maxEdgeRow
-                    pngRow
                     Toggle("Include subfolders", isOn: $model.includeSubfolders)
+                        .disabled(model.isRunning)
                         .onChange(of: model.includeSubfolders) { _, _ in
                             if !model.isRunning {
                                 model.refreshJobs(resetResults: true)
                             }
                         }
-                    Text("Defaults match the CLI: quality 90, no resize, Auto PNG.")
+                    Text("Transparent PNGs keep their alpha. Opaque PNGs stay near-lossless.")
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                 }
@@ -32,43 +32,57 @@ struct OptionsView: View {
             }
             .tint(.secondary)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 14)
+        .onAppear {
+            showAdvanced = true
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .padding(.bottom, 8)
     }
 
     private var outputRow: some View {
         @Bindable var model = model
-        return HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text("Output")
-                .font(.system(size: 12.5, weight: .medium))
-                .frame(width: 72, alignment: .leading)
-                .foregroundStyle(.secondary)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("Output")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .frame(width: 72, alignment: .leading)
+                    .foregroundStyle(.secondary)
 
-            Picker("Output", selection: $model.outputMode) {
-                ForEach(OutputMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 280)
-            .onChange(of: model.outputMode) { _, mode in
-                if mode == .folder && model.outputFolder == nil {
-                    model.chooseOutputFolder()
-                    if model.outputFolder == nil {
-                        model.outputMode = .besideOriginals
+                Picker("Output", selection: $model.outputMode) {
+                    ForEach(OutputMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
                     }
                 }
-            }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 280)
+                .disabled(model.isRunning)
+                .onChange(of: model.outputMode) { _, mode in
+                    model.rememberOutputMode()
+                    if mode == .folder && model.outputFolder == nil {
+                        model.chooseOutputFolder(revertIfCancelled: true)
+                    }
+                }
 
-            if model.outputMode == .folder {
-                Button(model.outputFolder?.lastPathComponent ?? "Choose…") {
+                Button("Choose Output Folder") {
                     model.chooseOutputFolder()
                 }
-                .help(model.outputFolder?.path ?? "Choose a folder")
+                .buttonStyle(MinifyButtonStyle())
+                .disabled(model.isRunning)
+
+                Spacer(minLength: 0)
             }
 
-            Spacer(minLength: 0)
+            if let path = model.outputFolderDisplay {
+                Text(path)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.leading, 84)
+                    .help(model.outputFolder?.path ?? path)
+            }
         }
     }
 
@@ -88,7 +102,7 @@ struct OptionsView: View {
                 Spacer()
             }
             Slider(value: qualityBinding, in: 70...100, step: 1)
-                .disabled(model.pngStrategy == .lossless)
+                .disabled(model.isRunning)
         }
     }
 
@@ -102,7 +116,7 @@ struct OptionsView: View {
     private var qualityCaption: String {
         switch model.quality {
         case 90...100: return "visually lossless photographs"
-        case 80..<90: return "still sharp, smaller"
+        case 75..<90: return "smaller, still sharp"
         default: return "fine for small inline images"
         }
     }
@@ -123,8 +137,9 @@ struct OptionsView: View {
             }
             .labelsHidden()
             .frame(width: 140)
+            .disabled(model.isRunning)
 
-            Text("Never upscales. Off unless the source is huge.")
+            Text("Never upscales.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
@@ -142,30 +157,5 @@ struct OptionsView: View {
                 }
             }
         )
-    }
-
-    private var pngRow: some View {
-        @Bindable var model = model
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                Text("PNG")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .frame(width: 72, alignment: .leading)
-                    .foregroundStyle(.secondary)
-                Picker("PNG", selection: $model.pngStrategy) {
-                    ForEach(PNGStrategy.allCases) { strategy in
-                        Text(strategy.title).tag(strategy)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 280)
-                Spacer(minLength: 0)
-            }
-            Text(model.pngStrategy.caption)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 84)
-        }
     }
 }

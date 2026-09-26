@@ -2,7 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Sandbox stays off so WebP files can be written beside the originals.
+	     The two keys below apply only if sandbox is turned on later: the folder
+	     picker needs user-selected read-write, and a security-scoped bookmark
+	     needs app-scope bookmarks to be remembered across launches. -->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
 </dict>
 </plist>

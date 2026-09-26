@@ -61,4 +61,21 @@ enum ByteFormat {
         let sign = to <= from ? "−" : "+"
         return "\(sign)\(abs(pct))%"
     }
+
+    /// One decimal, POSIX separator, so the status bar reads "18.4 MB" / "7.0 MB".
+    static func statusSize(_ bytes: Int) -> String {
+        let posix = Locale(identifier: "en_US_POSIX")
+        if bytes >= 1024 * 1024 {
+            return String(format: "%.1f MB", locale: posix, Double(bytes) / (1024 * 1024))
+        }
+        if bytes >= 1024 {
+            return String(format: "%.1f KB", locale: posix, Double(bytes) / 1024)
+        }
+        return "\(bytes) B"
+    }
+
+    static func savedPercent(from source: Int, to dest: Int) -> Int {
+        guard source > 0 else { return 0 }
+        return Int((Double(source - dest) / Double(source) * 100).rounded())
+    }
 }

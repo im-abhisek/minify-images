@@ -6,7 +6,7 @@ struct JobListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(model.jobs.count == 1 ? "1 image" : "\(model.jobs.count) images")
+                Text(headerTitle)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
@@ -16,25 +16,47 @@ struct JobListView: View {
                     Text(skipped)
                         .font(.system(size: 11.5))
                         .foregroundStyle(.orange)
+                        .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 8)
 
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(model.jobs) { job in
-                        JobRowView(job: job)
-                        if job.id != model.jobs.last?.id {
-                            Divider().padding(.leading, 24)
+            if model.jobs.isEmpty {
+                VStack(spacing: 6) {
+                    Spacer()
+                    Text("No images yet")
+                        .font(.system(size: 13, weight: .medium))
+                    Text("Drop files or a folder on the left.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 16)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(model.jobs) { job in
+                            JobRowView(job: job)
+                            if job.id != model.jobs.last?.id {
+                                Divider().padding(.leading, 16)
+                            }
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxHeight: 220)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.bottom, 8)
+    }
+
+    private var headerTitle: String {
+        if model.jobs.isEmpty { return "Images" }
+        return model.jobs.count == 1 ? "1 image" : "\(model.jobs.count) images"
     }
 }
 
@@ -64,12 +86,10 @@ struct JobRowView: View {
                 Button("Show") {
                     model.reveal(result.destination)
                 }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.tint)
+                .buttonStyle(MinifyButtonStyle(compact: true))
             }
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .contextMenu {
             Button("Reveal original in Finder") {
@@ -91,8 +111,7 @@ struct JobRowView: View {
                 .stroke(Color.secondary.opacity(0.45), lineWidth: 1.4)
                 .frame(width: 10, height: 10)
         case .converting:
-            ProgressView()
-                .controlSize(.mini)
+            YellowSpinner(side: 12)
         case .succeeded:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(.green)

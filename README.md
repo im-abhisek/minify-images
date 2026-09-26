@@ -11,7 +11,7 @@ Two ways to run it:
 
 ## Mac app
 
-Native SwiftUI app. Encodes with [libwebp](https://developers.google.com/speed/webp) using the same quality policy as the CLI (quality 90 photos, lossless PNG with alpha, near-lossless opaque PNG).
+Native SwiftUI app, always in dark mode. Encodes with [libwebp](https://developers.google.com/speed/webp) using the same automatic policy as the CLI (lossless PNG with alpha, near-lossless opaque PNG). The app’s quality slider starts at **75**; the CLI default is still 90.
 
 This repo can be opened on a Mac. The app is not prebuilt; you compile it once in Xcode.
 
@@ -37,10 +37,10 @@ Product → Test (**⌘U**) runs the Mac unit tests (quality policy, output path
 
 ### What you get
 
-- Drop JPEG/PNG files **or a folder**
-- Progress, per-file success/error, Show in Finder
-- Output **next to originals** (default) or a folder you pick
-- Optional quality, long-edge cap, PNG Auto / Photo / Lossless, include subfolders
+- Drop JPEG/PNG files **or a folder**. A dropped folder includes JPEG/PNG files in subfolders.
+- The image list sits beside the drop area, with per-file progress and a batch status bar
+- Output **next to originals** (default) or a folder you pick. The folder is remembered.
+- Quality (default 75), long-edge cap, and include-subfolders. Transparent PNGs keep their alpha.
 
 Originals are never modified.
 

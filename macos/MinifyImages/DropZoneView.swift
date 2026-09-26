@@ -22,18 +22,19 @@ struct DropZoneView: View {
                 )
                 .allowsHitTesting(false)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 Image(systemName: model.isTargeted ? "square.and.arrow.down" : "photo.on.rectangle.angled")
-                    .font(.system(size: 28, weight: .regular))
+                    .font(.system(size: 26, weight: .regular))
                     .foregroundStyle(model.isTargeted ? Color.accentColor : Color.secondary)
                     .symbolRenderingMode(.hierarchical)
                     .allowsHitTesting(false)
 
                 Text(model.isTargeted ? "Drop to add" : "Drop JPEG or PNG")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
+                    .multilineTextAlignment(.center)
                     .allowsHitTesting(false)
 
-                Text("Files or a folder. Originals are never changed.")
+                Text("or a folder")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
                     .allowsHitTesting(false)
@@ -41,13 +42,13 @@ struct DropZoneView: View {
                 Button("Choose files…") {
                     model.chooseFiles()
                 }
-                .buttonStyle(.bordered)
-                .padding(.top, 4)
+                .buttonStyle(MinifyButtonStyle())
+                .padding(.top, 6)
             }
-            .padding(28)
+            .padding(16)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 196)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minHeight: 220)
         .animation(.easeInOut(duration: 0.16), value: model.isTargeted)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Drop JPEG or PNG files, or a folder")

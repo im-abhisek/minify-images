@@ -34,6 +34,7 @@ struct MinifyImagesApp: App {
                 }
         }
         .windowStyle(.titleBar)
+        .windowToolbarStyle(.unified)
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 560)
         .commands {
@@ -58,12 +59,6 @@ struct MinifyImagesApp: App {
                 .disabled(!model.isRunning)
             }
         }
-        // TEMPORARY. Delete this menu with PaneStyle.swift.
-        .commands {
-            CommandMenu("Pane Style") {
-                PaneStyleMenu()
-            }
-        }
     }
 }
 
@@ -75,6 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var openFlushScheduled = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        UserDefaults.standard.removeObject(forKey: "temporary.paneStyle.border")
+        UserDefaults.standard.removeObject(forKey: "temporary.paneStyle.fill")
         Task { @MainActor in
             NSApp.appearance = NSAppearance(named: .darkAqua)
         }

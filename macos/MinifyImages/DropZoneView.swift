@@ -4,10 +4,10 @@ import SwiftUI
 struct ImagePaneView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(PaneBorderStyle.storageKey) private var borderStyle: PaneBorderStyle = .solidBlack
-    @AppStorage(PaneFillStyle.storageKey) private var fillStyle: PaneFillStyle = .gradient
 
     private let paneShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+    private static let paneFill = Color.black.opacity(0.16)
+    private static let paneRim = Color.black.opacity(0.68)
 
     var body: some View {
         @Bindable var model = model
@@ -21,7 +21,7 @@ struct ImagePaneView: View {
                 paneShape.fill(
                     model.isTargeted
                         ? AnyShapeStyle(Color.accentColor.opacity(0.14))
-                        : self.fillStyle.fillStyle
+                        : AnyShapeStyle(Self.paneFill)
                 )
                 PaneGrid()
                 ConversionEdgeGlow(animate: model.isRunning && !reduceMotion)
@@ -42,8 +42,8 @@ struct ImagePaneView: View {
             Group {
                 if model.isTargeted {
                     paneShape.strokeBorder(Color.accentColor, lineWidth: 1)
-                } else if let stroke = self.borderStyle.strokeStyle {
-                    paneShape.strokeBorder(stroke, lineWidth: 1)
+                } else {
+                    paneShape.strokeBorder(Self.paneRim, lineWidth: 1)
                 }
             }
             .allowsHitTesting(false)
@@ -159,19 +159,24 @@ private struct ConversionEdgeGlow: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !self.animate)) { timeline in
             let angle = self.angle(at: timeline.date)
+            let gradient = Self.gradient(angle: angle)
             ZStack {
                 self.shape
-                    .strokeBorder(Self.gradient(angle: angle, strength: 1), lineWidth: 2.5)
+                    .strokeBorder(gradient, lineWidth: 14)
+                    .blur(radius: 18)
+                    .opacity(0.45)
+                self.shape
+                    .strokeBorder(gradient, lineWidth: 3)
                     .blur(radius: 8)
+                    .opacity(0.28)
                 self.shape
-                    .strokeBorder(Self.gradient(angle: angle, strength: 1), lineWidth: 2.5)
-                self.shape
-                    .strokeBorder(Self.gradient(angle: angle, strength: 0.28), lineWidth: 16)
-                    .blur(radius: 6)
+                    .strokeBorder(gradient, lineWidth: 28)
+                    .blur(radius: 14)
+                    .opacity(0.2)
             }
         }
         .mask {
-            self.shape.strokeBorder(Color.white, lineWidth: 22)
+            self.shape.strokeBorder(Color.white, lineWidth: 36)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -179,23 +184,22 @@ private struct ConversionEdgeGlow: View {
 
     private func angle(at date: Date) -> Angle {
         guard self.animate else { return .degrees(-32) }
-        let cycle = 10.0
+        let cycle = 26.0
         let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
         return .degrees(phase * 360)
     }
 
-    private static func gradient(angle: Angle, strength: Double) -> AngularGradient {
-        let blue = Color.blue.opacity(0.95 * strength)
-        let pink = Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.9 * strength)
-        let dim = Color.blue.opacity(0.08 * strength)
+    /// Blue and pink meet at the join, with no dark stop, so the ring has no seam.
+    private static func gradient(angle: Angle) -> AngularGradient {
+        let blue = Color.blue.opacity(0.5)
+        let pink = Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.46)
         return AngularGradient(
             gradient: Gradient(stops: [
-                Gradient.Stop(color: dim, location: 0),
-                Gradient.Stop(color: blue, location: 0.20),
-                Gradient.Stop(color: pink, location: 0.46),
-                Gradient.Stop(color: dim, location: 0.70),
-                Gradient.Stop(color: blue, location: 0.86),
-                Gradient.Stop(color: dim, location: 1)
+                Gradient.Stop(color: blue, location: 0),
+                Gradient.Stop(color: pink, location: 0.25),
+                Gradient.Stop(color: blue, location: 0.5),
+                Gradient.Stop(color: pink, location: 0.75),
+                Gradient.Stop(color: blue, location: 1)
             ]),
             center: .center,
             startAngle: angle,

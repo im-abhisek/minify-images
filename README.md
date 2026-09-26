@@ -31,7 +31,7 @@ open macos/MinifyImages.xcodeproj
 
 If signing complains, open the **MinifyImages** target → **Signing & Capabilities** and choose your Personal Team (a free Apple ID is enough to run locally). The project ships ad-hoc signed (`CODE_SIGN_IDENTITY = "-"`) so Run often works with no team set.
 
-**⌘O** opens files or a folder. **⌘↩** converts. Esc cancels.
+**⌘O** opens files or a folder. **⌘↩** converts. Esc cancels. Finder Open With and `open -a` add files to the one window.
 
 Product → Test (**⌘U**) runs the Mac unit tests (quality policy, output paths, folder collection).
 

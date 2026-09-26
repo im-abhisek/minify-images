@@ -356,24 +356,24 @@ private struct StatusBar: View {
                     .buttonStyle(MinifyButtonStyle(compact: true))
                 }
                 if !model.jobs.isEmpty {
-                    Button("Clear") {
-                        model.clear()
+                    if model.isRunning {
+                        Button("Cancel") {
+                            model.cancel()
+                        }
+                        .keyboardShortcut(.escape, modifiers: [])
+                        .buttonStyle(FilledGreyButtonStyle())
+                    } else {
+                        Button("Clear All") {
+                            model.clear()
+                        }
+                        .buttonStyle(FilledGreyButtonStyle())
                     }
-                    .disabled(model.isRunning)
-                    .buttonStyle(MinifyButtonStyle())
-                }
-                if model.isRunning {
-                    Button("Cancel") {
-                        model.cancel()
-                    }
-                    .keyboardShortcut(.escape, modifiers: [])
-                    .buttonStyle(MinifyButtonStyle())
                 }
                 Button(model.isRunning ? "Converting…" : convertTitle) {
                     model.convert()
                 }
                 .keyboardShortcut(.return, modifiers: .command)
-                .buttonStyle(MinifyButtonStyle())
+                .buttonStyle(FilledBlueButtonStyle())
                 .disabled(!model.canConvert)
             }
             .padding(.horizontal, 20)

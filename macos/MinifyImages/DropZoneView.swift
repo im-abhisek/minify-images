@@ -23,10 +23,10 @@ struct ImagePaneView: View {
                         ? AnyShapeStyle(Color.accentColor.opacity(0.14))
                         : AnyShapeStyle(Self.paneFill)
                 )
-                PaneGrid()
-                ConversionEdgeGlow(animate: model.isRunning && !reduceMotion)
+                ConversionBottomWash(animate: model.isRunning && !reduceMotion)
                     .opacity(model.isRunning ? 1 : 0)
                     .animation(.easeInOut(duration: 0.8), value: model.isRunning)
+                PaneGrid()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipShape(paneShape)
@@ -149,62 +149,47 @@ private struct PaneGrid: View {
     }
 }
 
-/// Blue and pink light that travels around the pane edge. The centre stays clear.
-/// Reduce Motion holds the glow still.
-private struct ConversionEdgeGlow: View {
+/// Faint blue and pink tint in the bottom of the pane, drawn with the fill.
+/// Reduce Motion holds the drift still.
+private struct ConversionBottomWash: View {
     var animate: Bool
-
-    private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !self.animate)) { timeline in
-            let angle = self.angle(at: timeline.date)
-            let gradient = Self.gradient(angle: angle)
-            ZStack {
-                self.shape
-                    .strokeBorder(gradient, lineWidth: 14)
-                    .blur(radius: 18)
-                    .opacity(0.45)
-                self.shape
-                    .strokeBorder(gradient, lineWidth: 3)
-                    .blur(radius: 8)
-                    .opacity(0.28)
-                self.shape
-                    .strokeBorder(gradient, lineWidth: 28)
-                    .blur(radius: 14)
-                    .opacity(0.2)
+            let drift = self.drift(at: timeline.date)
+            GeometryReader { geo in
+                let band = geo.size.height * 0.28
+                LinearGradient(
+                    colors: [
+                        Color.blue.opacity(0.14),
+                        Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.11),
+                        Color.blue.opacity(0.09)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: geo.size.width * 1.35, height: band)
+                .offset(x: -geo.size.width * 0.175 + drift * geo.size.width * 0.1)
+                .frame(width: geo.size.width, height: geo.size.height, alignment: .bottomLeading)
+                .mask(alignment: .bottom) {
+                    LinearGradient(
+                        colors: [.clear, .black],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: band)
+                }
             }
-        }
-        .mask {
-            self.shape.strokeBorder(Color.white, lineWidth: 36)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    private func angle(at date: Date) -> Angle {
-        guard self.animate else { return .degrees(-32) }
-        let cycle = 26.0
+    private func drift(at date: Date) -> CGFloat {
+        guard self.animate else { return 0 }
+        let cycle = 18.0
         let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
-        return .degrees(phase * 360)
-    }
-
-    /// Blue and pink meet at the join, with no dark stop, so the ring has no seam.
-    private static func gradient(angle: Angle) -> AngularGradient {
-        let blue = Color.blue.opacity(0.5)
-        let pink = Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.46)
-        return AngularGradient(
-            gradient: Gradient(stops: [
-                Gradient.Stop(color: blue, location: 0),
-                Gradient.Stop(color: pink, location: 0.25),
-                Gradient.Stop(color: blue, location: 0.5),
-                Gradient.Stop(color: pink, location: 0.75),
-                Gradient.Stop(color: blue, location: 1)
-            ]),
-            center: .center,
-            startAngle: angle,
-            endAngle: angle + .degrees(360)
-        )
+        return CGFloat(sin(phase * 2 * Double.pi))
     }
 }
 

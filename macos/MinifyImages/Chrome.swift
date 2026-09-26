@@ -31,7 +31,7 @@ struct FilledBlueButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(Color.white)
+            .foregroundStyle(self.isEnabled ? Color.white : Color(nsColor: .tertiaryLabelColor))
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(
@@ -44,10 +44,38 @@ struct FilledBlueButtonStyle: ButtonStyle {
     }
 
     private func fill(isPressed: Bool) -> Color {
-        guard self.isEnabled else { return Color.accentColor.opacity(0.4) }
+        guard self.isEnabled else { return Color.white.opacity(0.07) }
         if isPressed { return Color.accentColor.opacity(0.72) }
         if self.isHovering { return Color.accentColor.opacity(0.88) }
         return Color.accentColor
+    }
+}
+
+/// Neutral filled button. Same size as the blue one. White label, lighter on hover, darker on press.
+struct FilledGreyButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(self.isEnabled ? Color.white : Color(nsColor: .tertiaryLabelColor))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(self.fill(isPressed: configuration.isPressed))
+            )
+            .onHover { hovering in
+                self.isHovering = hovering
+            }
+    }
+
+    private func fill(isPressed: Bool) -> Color {
+        guard self.isEnabled else { return Color.white.opacity(0.06) }
+        if isPressed { return Color.white.opacity(0.07) }
+        if self.isHovering { return Color.white.opacity(0.18) }
+        return Color.white.opacity(0.12)
     }
 }
 

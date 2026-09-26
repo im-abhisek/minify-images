@@ -16,14 +16,11 @@ struct ImagePaneView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             ZStack {
-                paneShape
-                    .fill(model.isTargeted ? Color.accentColor.opacity(0.14) : Color.white.opacity(0.05))
-
-                ConversionWash(animate: model.isRunning && !reduceMotion)
-                    .opacity(model.isRunning ? 0.16 : 0)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.8), value: model.isRunning)
-
+                paneShape.fill(model.isTargeted ? AnyShapeStyle(Color.accentColor.opacity(0.14)) : AnyShapeStyle(Self.paneFill))
                 PaneGrid()
+                ConversionEdgeGlow(animate: model.isRunning && !reduceMotion)
+                    .opacity(model.isRunning ? 1 : 0)
+                    .animation(.easeInOut(duration: 0.8), value: model.isRunning)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipShape(paneShape)
@@ -36,12 +33,14 @@ struct ImagePaneView: View {
             }
         }
         .overlay {
-            paneShape
-                .strokeBorder(
-                    model.isTargeted ? Color.accentColor : Color.white.opacity(0.08),
-                    lineWidth: 1
-                )
-                .allowsHitTesting(false)
+            Group {
+                if model.isTargeted {
+                    paneShape.strokeBorder(Color.accentColor, lineWidth: 1)
+                } else {
+                    paneShape.strokeBorder(Self.rim, lineWidth: 1)
+                }
+            }
+            .allowsHitTesting(false)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(minHeight: 150)
@@ -117,6 +116,26 @@ struct ImagePaneView: View {
     private var headerTitle: String {
         model.jobs.count == 1 ? "1 image" : "\(model.jobs.count) images"
     }
+
+    /// Slightly darker than the window at the top, current grey pane at the bottom.
+    private static let paneFill = LinearGradient(
+        colors: [
+            Color.black.opacity(0.16),
+            Color.white.opacity(0.05)
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+
+    /// Light along the top edge, dark along the bottom.
+    private static let rim = LinearGradient(
+        colors: [
+            Color.white.opacity(0.22),
+            Color.black.opacity(0.50)
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
 }
 
 /// Hairline canvas seams over the pane fill. 32pt cells, faint black.
@@ -144,49 +163,58 @@ private struct PaneGrid: View {
     }
 }
 
-/// Soft blue and pink wash. Drifts while a batch runs; static when Reduce Motion is on.
-private struct ConversionWash: View {
+/// Blue and pink light that travels around the pane edge. The centre stays clear.
+/// Reduce Motion holds the glow still.
+private struct ConversionEdgeGlow: View {
     var animate: Bool
 
+    private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !animate)) { timeline in
-            let phase = self.phase(at: timeline.date)
-            Canvas { context, size in
-                ConversionWash.draw(context: &context, size: size, phase: phase)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !self.animate)) { timeline in
+            let angle = self.angle(at: timeline.date)
+            ZStack {
+                self.shape
+                    .strokeBorder(Self.gradient(angle: angle, strength: 1), lineWidth: 2.5)
+                    .blur(radius: 8)
+                self.shape
+                    .strokeBorder(Self.gradient(angle: angle, strength: 1), lineWidth: 2.5)
+                self.shape
+                    .strokeBorder(Self.gradient(angle: angle, strength: 0.28), lineWidth: 16)
+                    .blur(radius: 6)
             }
+        }
+        .mask {
+            self.shape.strokeBorder(Color.white, lineWidth: 22)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 
-    private func phase(at date: Date) -> Double {
-        guard self.animate else { return 0.35 }
-        let cycle = 8.0
-        return date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
+    private func angle(at date: Date) -> Angle {
+        guard self.animate else { return .degrees(-32) }
+        let cycle = 10.0
+        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: cycle) / cycle
+        return .degrees(phase * 360)
     }
 
-    private static func draw(context: inout GraphicsContext, size: CGSize, phase: Double) {
-        let blobs: [(Color, Double)] = [
-            (Color.blue, 0),
-            (Color(red: 0.98, green: 0.45, blue: 0.72), 0.5)
-        ]
-        let reach = max(min(size.width, size.height), 1)
-        for (color, shift) in blobs {
-            let angle = (phase + shift) * 2 * Double.pi
-            let cx = size.width * 0.5 + CGFloat(cos(angle)) * size.width * 0.22
-            let cy = size.height * 0.5 + CGFloat(sin(angle * 0.85 + shift)) * size.height * 0.2
-            let radius = reach * 0.62
-            let rect = CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)
-            context.fill(
-                Path(ellipseIn: rect),
-                with: .radialGradient(
-                    Gradient(colors: [color.opacity(0.95), color.opacity(0)]),
-                    center: CGPoint(x: cx, y: cy),
-                    startRadius: 0,
-                    endRadius: radius
-                )
-            )
-        }
+    private static func gradient(angle: Angle, strength: Double) -> AngularGradient {
+        let blue = Color.blue.opacity(0.95 * strength)
+        let pink = Color(red: 0.98, green: 0.45, blue: 0.72).opacity(0.9 * strength)
+        let dim = Color.blue.opacity(0.08 * strength)
+        return AngularGradient(
+            gradient: Gradient(stops: [
+                Gradient.Stop(color: dim, location: 0),
+                Gradient.Stop(color: blue, location: 0.20),
+                Gradient.Stop(color: pink, location: 0.46),
+                Gradient.Stop(color: dim, location: 0.70),
+                Gradient.Stop(color: blue, location: 0.86),
+                Gradient.Stop(color: dim, location: 1)
+            ]),
+            center: .center,
+            startAngle: angle,
+            endAngle: angle + .degrees(360)
+        )
     }
 }
 

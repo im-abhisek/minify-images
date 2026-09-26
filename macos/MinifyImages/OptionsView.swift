@@ -18,7 +18,7 @@ struct OptionsView: View {
     private var outputColumn: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Output")
-                .font(.system(size: 12.5, weight: .medium))
+                .font(.system(size: 12.5, weight: .semibold))
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
@@ -77,7 +77,7 @@ struct OptionsView: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("Quality")
-                    .font(.system(size: 12.5, weight: .medium))
+                    .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Text("\(model.quality)")
                     .font(.system(size: 12.5, weight: .semibold))

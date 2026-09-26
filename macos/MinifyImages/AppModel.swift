@@ -169,6 +169,17 @@ final class AppModel {
         UserDefaults.standard.set(outputMode == .folder, forKey: Store.useFolder)
     }
 
+    /// Drops the chosen folder and writes beside the originals again.
+    func clearChosenOutputFolder() {
+        releaseOutputAccess()
+        outputFolder = nil
+        outputMode = .besideOriginals
+        rememberOutputMode()
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: Store.bookmark)
+        defaults.removeObject(forKey: Store.path)
+    }
+
     func reveal(_ url: URL) {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }

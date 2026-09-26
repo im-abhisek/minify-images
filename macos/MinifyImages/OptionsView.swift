@@ -22,22 +22,33 @@ struct OptionsView: View {
                 .foregroundStyle(.secondary)
 
             HStack(spacing: 12) {
-                Text(outputCaption)
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help(outputHelp)
+                HStack(spacing: 4) {
+                    Text(outputCaption)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(outputHelp)
+                        .layoutPriority(-1)
+                    if folderChosen {
+                        Button {
+                            self.model.clearChosenOutputFolder()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.secondary.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .fixedSize()
+                        .help("Use originals")
+                        .accessibilityLabel("Use originals")
+                    }
+                }
                 OutputLink(title: folderChosen ? "Change" : "Choose Folder") {
                     let revertIfCancelled = self.model.outputMode != .folder
                     self.model.chooseOutputFolder(revertIfCancelled: revertIfCancelled)
                 }
-                if folderChosen {
-                    OutputLink(title: "Use originals", size: 12) {
-                        self.model.outputMode = .besideOriginals
-                        self.model.rememberOutputMode()
-                    }
-                }
+                Spacer(minLength: 0)
             }
             .disabled(self.model.isRunning)
         }
@@ -89,7 +100,6 @@ struct OptionsView: View {
 /// Blue underlined text button. No fill and no bezel.
 private struct OutputLink: View {
     let title: String
-    var size: CGFloat = 12.5
     let action: () -> Void
 
     @Environment(\.isEnabled) private var isEnabled
@@ -97,7 +107,7 @@ private struct OutputLink: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: size))
+                .font(.system(size: 12.5))
                 .foregroundStyle(Color.blue.opacity(isEnabled ? 1 : 0.4))
                 .underline()
         }

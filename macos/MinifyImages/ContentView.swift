@@ -8,9 +8,10 @@ struct ContentView: View {
         VStack(spacing: 0) {
             header
 
-            HStack(alignment: .stretch, spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
                 DropZoneView()
                     .frame(width: 220)
+                    .frame(maxHeight: .infinity)
                 JobListView()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(

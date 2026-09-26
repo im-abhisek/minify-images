@@ -13,16 +13,13 @@ struct ImagePaneView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(model.isTargeted ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.035))
+                .fill(model.isTargeted ? Color.accentColor.opacity(0.14) : Color.white.opacity(0.05))
                 .allowsHitTesting(false)
 
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(
-                    model.isTargeted ? Color.accentColor : Color.primary.opacity(0.16),
-                    style: StrokeStyle(
-                        lineWidth: model.isTargeted ? 2 : 1.4,
-                        dash: model.isTargeted || !model.jobs.isEmpty ? [] : [6, 5]
-                    )
+                    model.isTargeted ? Color.accentColor : Color.white.opacity(0.08),
+                    lineWidth: 1
                 )
                 .allowsHitTesting(false)
 

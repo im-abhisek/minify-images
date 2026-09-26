@@ -10,9 +10,7 @@ final class AppModel {
     var jobs: [ImageJob] = []
     var isTargeted = false
     var quality = 75
-    var maxEdge: MaxEdge = .off
     var pngStrategy: PNGStrategy = .preserve
-    var includeSubfolders = true
     var outputMode: OutputMode = .besideOriginals
     var outputFolder: URL?
     var isRunning = false
@@ -39,9 +37,8 @@ final class AppModel {
     var settings: ConversionSettings {
         ConversionSettings(
             quality: quality,
-            maxDimension: maxEdge.pixels,
+            maxDimension: nil,
             pngStrategy: pngStrategy,
-            includeSubfolders: includeSubfolders,
             outputFolder: outputMode == .folder ? outputFolder : nil
         )
     }
@@ -100,24 +97,15 @@ final class AppModel {
     func addDroppedURLs(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         var merged = droppedInputs
-        var sawDirectory = false
         for url in urls {
             retainScope(url)
             let standardized = url.resolvingSymlinksInPath().standardizedFileURL
             if standardized.path != url.standardizedFileURL.path {
                 retainScope(standardized)
             }
-            var isDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: standardized.path, isDirectory: &isDirectory),
-               isDirectory.boolValue {
-                sawDirectory = true
-            }
             if !merged.contains(where: { $0.standardizedFileURL == standardized }) {
                 merged.append(standardized)
             }
-        }
-        if sawDirectory {
-            includeSubfolders = true
         }
         droppedInputs = merged
         refreshJobs(resetResults: true)
@@ -127,7 +115,7 @@ final class AppModel {
         let previous: [String: ImageJob] = resetResults ? [:] : Dictionary(
             uniqueKeysWithValues: jobs.map { ($0.source.standardizedFileURL.path, $0) }
         )
-        let collected = ImageCollector.collectDropped(urls: droppedInputs, recursive: includeSubfolders)
+        let collected = ImageCollector.collectDropped(urls: droppedInputs, recursive: true)
         jobs = collected.images.map { item in
             if let existing = previous[item.source.standardizedFileURL.path], !resetResults {
                 return ImageJob(id: existing.id, source: item.source, root: item.root, status: existing.status)
@@ -464,30 +452,8 @@ enum OutputMode: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .besideOriginals: return "Beside originals"
-        case .folder: return "Folder"
-        }
-    }
-}
-
-enum MaxEdge: Equatable, Hashable {
-    case off
-    case preset(Int)
-    case custom(Int)
-
-    static let presets = [2400, 1600, 1200]
-
-    var pixels: Int? {
-        switch self {
-        case .off: return nil
-        case .preset(let value), .custom(let value): return value
-        }
-    }
-
-    var menuTitle: String {
-        switch self {
-        case .off: return "Off"
-        case .preset(let value), .custom(let value): return "\(value) px"
+        case .besideOriginals: return "Originals"
+        case .folder: return "Choose"
         }
     }
 }

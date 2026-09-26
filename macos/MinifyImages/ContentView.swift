@@ -23,7 +23,6 @@ struct ContentView: View {
             .frame(maxHeight: .infinity)
 
             OptionsView()
-            actionBar
             StatusBar()
         }
         .background(Color(nsColor: .windowBackgroundColor))
@@ -59,40 +58,6 @@ struct ContentView: View {
         .padding(.bottom, 12)
     }
 
-    private var actionBar: some View {
-        HStack(spacing: 10) {
-            Spacer()
-            if !model.jobs.isEmpty {
-                Button("Clear") {
-                    model.clear()
-                }
-                .disabled(model.isRunning)
-                .buttonStyle(MinifyButtonStyle())
-            }
-            if model.isRunning {
-                Button("Cancel") {
-                    model.cancel()
-                }
-                .keyboardShortcut(.escape, modifiers: [])
-                .buttonStyle(MinifyButtonStyle())
-            }
-            Button(model.isRunning ? "Converting…" : convertTitle) {
-                model.convert()
-            }
-            .keyboardShortcut(.return, modifiers: .command)
-            .buttonStyle(MinifyButtonStyle())
-            .disabled(!model.canConvert)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 2)
-        .padding(.bottom, 12)
-    }
-
-    private var convertTitle: String {
-        let n = model.jobs.count
-        if n == 0 { return "Convert" }
-        return n == 1 ? "Convert 1 image" : "Convert \(n) images"
-    }
 }
 
 private struct StatusBar: View {
@@ -116,6 +81,26 @@ private struct StatusBar: View {
                     }
                     .buttonStyle(MinifyButtonStyle(compact: true))
                 }
+                if !model.jobs.isEmpty {
+                    Button("Clear") {
+                        model.clear()
+                    }
+                    .disabled(model.isRunning)
+                    .buttonStyle(MinifyButtonStyle())
+                }
+                if model.isRunning {
+                    Button("Cancel") {
+                        model.cancel()
+                    }
+                    .keyboardShortcut(.escape, modifiers: [])
+                    .buttonStyle(MinifyButtonStyle())
+                }
+                Button(model.isRunning ? "Converting…" : convertTitle) {
+                    model.convert()
+                }
+                .keyboardShortcut(.return, modifiers: .command)
+                .buttonStyle(MinifyButtonStyle())
+                .disabled(!model.canConvert)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
@@ -125,6 +110,12 @@ private struct StatusBar: View {
 
     private var emphasize: Bool {
         model.isRunning || model.lastSummary != nil
+    }
+
+    private var convertTitle: String {
+        let n = model.jobs.count
+        if n == 0 { return "Convert" }
+        return n == 1 ? "Convert 1 image" : "Convert \(n) images"
     }
 
     private var statusText: String {

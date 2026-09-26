@@ -40,7 +40,7 @@ Product → Test (**⌘U**) runs the Mac unit tests (quality policy, output path
 - Drop JPEG/PNG files **or a folder**. A dropped folder includes JPEG/PNG files in subfolders.
 - The image list sits beside the drop area, with per-file progress and a batch status bar
 - Output **next to originals** (default) or a folder you pick. The folder is remembered.
-- Quality (default 75), long-edge cap, and include-subfolders. Transparent PNGs keep their alpha.
+- Quality (default 75) sits beside Output. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha.
 
 Originals are never modified.
 
@@ -116,7 +116,7 @@ Originals are never modified.
 | JPEG | quality **90**, effort 6 | Visually lossless for photographs |
 | PNG with transparency | **lossless**, alpha kept | Soft edges and clear pixels stay intact |
 | PNG, no alpha | **near-lossless** at quality 90 | Screenshots and graphics stay sharp |
-| Size | **no resize** | Pass `--max 2400` (CLI) or set Long edge (app) if the file is huge |
+| Size | **no resize** | CLI: pass `--max 2400` if the file is huge. The Mac app does not resize. |
 
 `--quality` / the app slider only changes the photo / near-lossless paths (1–100):
 
@@ -125,7 +125,7 @@ Originals are never modified.
 - **70** — use when the image is small on the page.
 - **Lossless** — bit-exact. Larger. Best for logos and UI.
 
-Optional max dimension never upscales. Skip it unless the source is far larger than the post layout.
+On the CLI, `--max` never upscales. Skip it unless the source is far larger than the post layout. The Mac app does not resize.
 
 ## Requirements
 

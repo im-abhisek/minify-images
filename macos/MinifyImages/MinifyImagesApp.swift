@@ -4,7 +4,15 @@ import SwiftUI
 @main
 struct MinifyImagesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel()
+    @State private var model: AppModel
+
+    init() {
+        let model = AppModel()
+        self._model = State(initialValue: model)
+        // Hand the adaptor's own delegate the model. NSApp.delegate is SwiftUI's
+        // wrapper, so files opened at cold launch flush before the window appears.
+        self.appDelegate.attach(model: model)
+    }
 
     var body: some Scene {
         // One window for the life of the app. WindowGroup was opening a new
@@ -13,13 +21,14 @@ struct MinifyImagesApp: App {
             ContentView()
                 .preferredColorScheme(.dark)
                 .background {
-                    MainWindowBridge(model: model)
+                    MainWindowBridge(model: model, appDelegate: appDelegate)
                 }
                 .environment(model)
                 .onOpenURL { url in
                     self.appDelegate.present(urls: [url])
                 }
                 .onAppear {
+                    self.appDelegate.attach(model: self.model)
                     NSApp.appearance = NSAppearance(named: .darkAqua)
                     NSWindow.allowsAutomaticWindowTabbing = false
                 }
@@ -87,19 +96,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Keeps the first model so the window and the delegate share one list.
+    /// Flushes anything queued before the model existed.
     @MainActor
-    func attach(model: AppModel, show: @escaping @MainActor () -> Void) {
-        self.model = model
+    func attach(model: AppModel) {
+        if self.model == nil {
+            self.model = model
+        }
+        self.flushPendingURLs()
+    }
+
+    @MainActor
+    func setShowMainWindow(_ show: @escaping @MainActor () -> Void) {
         self.showMainWindow = show
-        guard !self.pendingURLs.isEmpty else { return }
-        let urls = self.pendingURLs
-        self.pendingURLs = []
-        model.addDroppedURLs(urls)
     }
 
     @MainActor
     func present(urls: [URL]) {
         guard !urls.isEmpty else { return }
+        guard self.model != nil else {
+            self.pendingURLs.append(contentsOf: urls)
+            return
+        }
         self.queuedOpenURLs.append(contentsOf: urls)
         guard !self.openFlushScheduled else { return }
         self.openFlushScheduled = true
@@ -109,6 +127,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let batch = self.queuedOpenURLs
             self.queuedOpenURLs = []
             self.flushOpenedURLs(batch)
+        }
+    }
+
+    @MainActor
+    private func flushPendingURLs() {
+        guard let model = self.model, !self.pendingURLs.isEmpty else { return }
+        let urls = self.pendingURLs
+        self.pendingURLs = []
+        model.addDroppedURLs(urls)
+        self.showMainWindow?()
+        self.orderMainWindowFront()
+        DispatchQueue.main.async { [weak self] in
+            self?.orderMainWindowFront()
         }
     }
 
@@ -142,16 +173,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private struct MainWindowBridge: View {
     @Environment(\.openWindow) private var openWindow
     var model: AppModel
+    var appDelegate: AppDelegate
 
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
             .onAppear {
-                guard let delegate = NSApp.delegate as? AppDelegate else { return }
                 let openWindow = self.openWindow
-                let model = self.model
-                delegate.attach(model: model) { @MainActor in
+                let delegate = self.appDelegate
+                delegate.attach(model: self.model)
+                delegate.setShowMainWindow { @MainActor in
                     openWindow(id: "main")
                 }
             }

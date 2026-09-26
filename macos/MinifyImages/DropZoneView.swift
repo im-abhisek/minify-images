@@ -63,7 +63,7 @@ struct ImagePaneView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 19) {
             VStack(spacing: 4) {
                 Text("Drop Files and Folders")
                     .font(.system(size: 15, weight: .semibold))
@@ -209,7 +209,7 @@ private struct ConversionEdgeGlow: View {
 }
 
 private struct AddFilesButton: View {
-    /// Filled grey button in the empty pane. Plain blue text once thumbnails are showing.
+    /// Filled blue button in the empty pane. Plain blue text once thumbnails are showing.
     var filled = true
     @Environment(AppModel.self) private var model
 
@@ -220,7 +220,7 @@ private struct AddFilesButton: View {
             } label: {
                 Label("Add Files", systemImage: "plus")
             }
-            .buttonStyle(MinifyButtonStyle())
+            .buttonStyle(FilledBlueButtonStyle())
         } else {
             Button {
                 self.model.chooseFiles()

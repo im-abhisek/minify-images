@@ -9,7 +9,7 @@ struct MinifyButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: compact ? 12 : 13, weight: .medium))
-            .foregroundStyle(Color.blue.opacity(isEnabled ? 1 : 0.38))
+            .foregroundStyle(isEnabled ? Color.blue : Color(nsColor: .tertiaryLabelColor))
             .padding(.horizontal, compact ? 8 : 12)
             .padding(.vertical, compact ? 3 : 6)
             .background(
@@ -21,6 +21,34 @@ struct MinifyButtonStyle: ButtonStyle {
     /// Lighter than the dark window background.
     private static let fill = Color(white: 0.32)
     private static let fillPressed = Color(white: 0.42)
+}
+
+/// Empty-pane Add Files control. Same footprint as the grey buttons, filled with the accent.
+struct FilledBlueButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovering = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(self.fill(isPressed: configuration.isPressed))
+            )
+            .onHover { hovering in
+                self.isHovering = hovering
+            }
+    }
+
+    private func fill(isPressed: Bool) -> Color {
+        guard self.isEnabled else { return Color.accentColor.opacity(0.4) }
+        if isPressed { return Color.accentColor.opacity(0.72) }
+        if self.isHovering { return Color.accentColor.opacity(0.88) }
+        return Color.accentColor
+    }
 }
 
 /// Yellow circular spinner for the batch status bar and in-row progress.

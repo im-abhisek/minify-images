@@ -18,8 +18,9 @@ struct OptionsView: View {
     private var outputColumn: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Output")
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
 
             HStack(spacing: 12) {
                 HStack(spacing: 4) {
@@ -77,10 +78,11 @@ struct OptionsView: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Text("Quality")
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Text("\(model.quality)")
-                    .font(.system(size: 12.5, weight: .semibold))
+                    .font(.system(size: 10.5, weight: .semibold))
                     .monospacedDigit()
             }
             // A custom track so macOS does not draw tick marks. The binding still snaps to whole numbers.

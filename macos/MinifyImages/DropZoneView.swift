@@ -67,7 +67,7 @@ struct ImagePaneView: View {
             VStack(spacing: 4) {
                 Text("Drop Files and Folders")
                     .font(.system(size: 15, weight: .semibold))
-                Text("Convert JPEGs and PNGs to WebP")
+                Text("Convert JPEG, PNG and HEIC to WebP")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
             }

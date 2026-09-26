@@ -50,6 +50,28 @@ final class QualityPolicyTests: XCTestCase {
         XCTAssertEqual(recipe.label(hasAlpha: true), "photo+alpha, q80")
     }
 
+    func testHEICUsesPhotoQualityAndKeepsAlpha() {
+        let opaque = QualityPolicy.recipe(
+            kind: .heic,
+            hasAlpha: false,
+            quality: 75,
+            lossless: false,
+            photo: false
+        )
+        XCTAssertEqual(opaque, .photo(quality: 75))
+        XCTAssertEqual(opaque.label(hasAlpha: false), "photo, q75")
+
+        let withAlpha = QualityPolicy.recipe(
+            kind: .heic,
+            hasAlpha: true,
+            quality: 75,
+            lossless: false,
+            photo: false
+        )
+        XCTAssertEqual(withAlpha, .photo(quality: 75))
+        XCTAssertEqual(withAlpha.label(hasAlpha: true), "photo+alpha, q75")
+    }
+
     func testLosslessFlagWinsForJPEG() {
         let recipe = QualityPolicy.recipe(
             kind: .jpeg,

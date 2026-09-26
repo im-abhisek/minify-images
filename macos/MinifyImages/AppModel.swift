@@ -56,7 +56,7 @@ final class AppModel {
     }
 
     var convertDisabledReason: String? {
-        if jobs.isEmpty { return "Drop JPEG or PNG files to convert" }
+        if jobs.isEmpty { return "Drop JPEG, PNG or HEIC files to convert" }
         if outputMode == .folder && outputFolder == nil { return "Choose an output folder" }
         return nil
     }
@@ -149,8 +149,8 @@ final class AppModel {
         }
         if collected.skipped > 0 {
             skippedNotice = collected.skipped == 1
-                ? "Skipped 1 item that wasn’t JPEG or PNG"
-                : "Skipped \(collected.skipped) items that weren’t JPEG or PNG"
+                ? "Skipped 1 item that wasn’t JPEG, PNG, or HEIC"
+                : "Skipped \(collected.skipped) items that weren’t JPEG, PNG, or HEIC"
         } else {
             skippedNotice = nil
         }
@@ -334,8 +334,8 @@ final class AppModel {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = true
         panel.canCreateDirectories = false
-        panel.allowedContentTypes = [.jpeg, .png, .folder]
-        panel.message = "Add JPEG or PNG images, or a folder of them"
+        panel.allowedContentTypes = [.jpeg, .png, .heic, .heif, .folder]
+        panel.message = "Add JPEG, PNG, or HEIC images, or a folder of them"
         panel.prompt = "Add"
         guard panel.runModal() == .OK else { return }
         addDroppedURLs(panel.urls)

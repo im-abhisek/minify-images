@@ -80,6 +80,7 @@ private enum ThumbnailMaker {
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceThumbnailMaxPixelSize: maxPixel,
         ]
+        // Index 0 is the primary frame, including for HEIC containers. ImageIO decodes HEIC here.
         return CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary)
     }
 }

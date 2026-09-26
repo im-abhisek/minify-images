@@ -25,7 +25,9 @@ enum ImageDecoder {
 
         let kind = try sourceKind(for: typeIdentifier, fallbackExtension: url.pathExtension)
 
-        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        // Index 0 is the primary image. Extra frames in a HEIC container stay unused.
+        let primaryIndex = 0
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, primaryIndex, nil) as? [CFString: Any]
         let pixelWidth = properties?[kCGImagePropertyPixelWidth] as? Int ?? 0
         let pixelHeight = properties?[kCGImagePropertyPixelHeight] as? Int ?? 0
         let longest = max(pixelWidth, pixelHeight, 1)
@@ -38,12 +40,13 @@ enum ImageDecoder {
 
         let thumbnailOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
+            // Applies EXIF orientation and the HEIC rotation box, so portrait phone photos stay upright.
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceThumbnailMaxPixelSize: cap,
         ]
 
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions as CFDictionary) else {
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, primaryIndex, thumbnailOptions as CFDictionary) else {
             throw DecodeError.unreadable(url)
         }
 
@@ -56,10 +59,12 @@ enum ImageDecoder {
         if let type = UTType(typeIdentifier) {
             if type.conforms(to: .jpeg) { return .jpeg }
             if type.conforms(to: .png) { return .png }
+            if type.conforms(to: .heic) || type.conforms(to: .heif) { return .heic }
         }
         switch fallbackExtension.lowercased() {
         case "jpg", "jpeg": return .jpeg
         case "png": return .png
+        case "heic", "heif": return .heic
         default:
             throw DecodeError.unsupportedType(typeIdentifier)
         }
@@ -82,6 +87,8 @@ enum ImageDecoder {
         }
 
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        // libwebp is given raw RGBA and does not store an ICC profile, so Display P3 and
+        // other wide-gamut sources are converted to sRGB here.
         let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
         let bitmapInfo = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
 
@@ -135,7 +142,7 @@ enum ImageDecoder {
             case .unreadable(let url):
                 return "Couldn’t read \(url.lastPathComponent)"
             case .unsupportedType:
-                return "Not a JPEG or PNG"
+                return "Not a JPEG, PNG, or HEIC"
             case .emptyImage:
                 return "Image has no pixels"
             case .bitmapFailed:

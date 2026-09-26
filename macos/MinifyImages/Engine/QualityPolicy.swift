@@ -1,10 +1,11 @@
 import Foundation
 
 /// Same quality policy as `src/cli.mjs` `webpOptions`.
-/// Keep the two in lockstep: visually lossless photos, lossless PNG+alpha, near-lossless opaque PNG.
+/// JPEG and HEIC are lossy at `quality`. PNG stays lossless or near-lossless unless photo/lossless is set.
 enum SourceKind: String, Equatable {
     case jpeg
     case png
+    case heic
 }
 
 struct ConversionSettings: Equatable, Sendable {

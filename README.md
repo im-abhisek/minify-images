@@ -1,6 +1,6 @@
 # minify-images
 
-A small Mac tool that turns JPEG and PNG files into **high-quality WebP** for a personal blog.
+A small Mac tool that turns JPEG, PNG, and HEIC files into **high-quality WebP** for a personal blog.
 
 It aims for visually lossless results, not aggressive crushing. Transparency is kept. Nothing is resized unless you ask.
 
@@ -11,7 +11,7 @@ Two ways to run it:
 
 ## Mac app
 
-**WebPinch** is the native SwiftUI app, always in dark mode. The built bundle is `WebPinch.app`. It encodes with [libwebp](https://developers.google.com/speed/webp). The quality slider applies to JPEGs and PNGs (lossy WebP, alpha kept) and starts at **75**; the CLI default is still 90.
+**WebPinch** is the native SwiftUI app, always in dark mode. The built bundle is `WebPinch.app`. It encodes with [libwebp](https://developers.google.com/speed/webp). The quality slider applies to JPEG, PNG, and HEIC (lossy WebP, alpha kept) and starts at **75**; the CLI default is still 90. HEIC is decoded with ImageIO. Display P3 and other wide-gamut sources are converted to sRGB before encoding, because the WebP bytes are raw pixels and do not store an ICC profile.
 
 This repo can be opened on a Mac. The app is not prebuilt; you compile it once in Xcode.
 
@@ -37,7 +37,7 @@ Product → Test (**⌘U**) runs the Mac unit tests (quality policy, output path
 
 ### What you get
 
-- Drop JPEG/PNG files **or a folder**. A dropped folder includes JPEG/PNG files in subfolders.
+- Drop JPEG, PNG, or HEIC files **or a folder**. A dropped folder includes JPEG, PNG, and HEIC files in subfolders. Finder’s Open With lists WebPinch for `.heic` and `.heif` too.
 - One pane: drop files or a folder, or use Add Files. Added images show as a thumbnail grid with per-file size and progress. The pane is a solid rounded surface with a faint canvas grid and hairline, and a soft blue tint while dragging. While converting, the border picks up a slow, faint blue-and-pink tint.
 - Output reads **Next to originals**, with a **Choose Folder** link. After a folder is chosen the name is shown, a small clear button returns to originals, and **Change** reopens the panel. The folder is remembered until it is cleared.
 - Quality (default 75) sits beside Output on a 0–100 slider whose track runs from red through yellow to green. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha. The window title, Dock label, and app menu use the name WebPinch.
@@ -78,9 +78,10 @@ Drag a file onto the Terminal window after typing `./compress-for-blog ` (note t
 ```
 hero.jpg   →  hero.webp
 logo.png   →  logo.webp
+photo.heic →  photo.webp
 ```
 
-**Folder of images:** every JPEG/PNG in that folder (not subfolders unless `-r`).
+**Folder of images:** every JPEG, PNG, or HEIC in that folder (not subfolders unless `-r`). `.heif` is accepted too.
 
 **`--out`:** collect everything in one place, keeping subfolder names if you passed `-r`.
 
@@ -113,7 +114,7 @@ Originals are never modified.
 
 | Source | Default WebP | Why |
 | --- | --- | --- |
-| JPEG | quality **90**, effort 6 | Visually lossless for photographs |
+| JPEG, HEIC, HEIF | quality **90**, effort 6 | Visually lossless for photographs. Alpha is kept when the source has it. |
 | PNG with transparency | **lossless**, alpha kept | Soft edges and clear pixels stay intact |
 | PNG, no alpha | **near-lossless** at quality 90 | Screenshots and graphics stay sharp |
 | Size | **no resize** | CLI: pass `--max 2400` if the file is huge. The Mac app does not resize. |
@@ -132,9 +133,9 @@ On the CLI, `--max` never upscales. Skip it unless the source is far larger than
 - macOS 14+ for the app (Apple Silicon first; Intel via the same Xcode project)
 - Xcode 16+ to build the app
 - Node 20+ (`brew install node`) for the CLI
-- JPEG or PNG input (`.jpg`, `.jpeg`, `.png`)
+- JPEG, PNG, or HEIC input (`.jpg`, `.jpeg`, `.png`, `.heic`, `.heif`)
 
-iPhone photos are auto-rotated from EXIF so they don’t land sideways.
+iPhone photos are auto-rotated from EXIF (and the HEIC rotation box) so portrait shots don’t land sideways. The Mac app uses the primary image when a HEIC file contains more than one.
 
 ## Develop
 

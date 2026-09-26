@@ -68,7 +68,7 @@ struct ImagePaneView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                AddFilesButton(compact: true)
+                AddFilesButton(filled: false)
             }
             .padding(.horizontal, 16)
             .padding(.top, 10)
@@ -96,15 +96,27 @@ struct ImagePaneView: View {
 }
 
 private struct AddFilesButton: View {
-    var compact = false
+    /// Filled grey button in the empty pane. Plain blue text once the list is showing.
+    var filled = true
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        Button {
-            self.model.chooseFiles()
-        } label: {
-            Label("Add Files", systemImage: "plus")
+        if filled {
+            Button {
+                self.model.chooseFiles()
+            } label: {
+                Label("Add Files", systemImage: "plus")
+            }
+            .buttonStyle(MinifyButtonStyle())
+        } else {
+            Button {
+                self.model.chooseFiles()
+            } label: {
+                Label("Add Files", systemImage: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.blue)
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(MinifyButtonStyle(compact: compact))
     }
 }

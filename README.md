@@ -39,8 +39,8 @@ Product → Test (**⌘U**) runs the Mac unit tests (quality policy, output path
 
 - Drop JPEG/PNG files **or a folder**. A dropped folder includes JPEG/PNG files in subfolders.
 - One pane: drop files or a folder, or use Add Files. The same pane lists each image and its progress. The pane is a solid rounded surface with a faint hairline, and a soft blue tint while dragging.
-- Output **next to originals** (default) or a folder you pick. The folder is remembered.
-- Quality (default 75) sits beside Output. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha.
+- Output reads **Next to originals**, with a **Choose Folder** link. After a folder is chosen the name is shown, **Change** reopens the panel, and **Use originals** switches back. The folder is remembered.
+- Quality (default 75) sits beside Output on a plain 0–100 slider. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha.
 
 Originals are never modified.
 

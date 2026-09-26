@@ -53,11 +53,6 @@ final class AppModel {
         return nil
     }
 
-    var outputFolderDisplay: String? {
-        guard outputMode == .folder, let outputFolder else { return nil }
-        return outputFolder.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
-    }
-
     var inProgressStatus: String {
         let total = jobs.count
         guard total > 0 else { return "In progress · Quality \(runningQuality)" }
@@ -461,13 +456,6 @@ enum OutputMode: String, CaseIterable, Identifiable {
     case folder
 
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .besideOriginals: return "Originals"
-        case .folder: return "Choose"
-        }
-    }
 }
 
 struct RunSummary: Equatable {

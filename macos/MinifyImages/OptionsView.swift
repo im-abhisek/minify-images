@@ -16,24 +16,49 @@ struct OptionsView: View {
     }
 
     private var outputColumn: some View {
-        @Bindable var model = model
-        return VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Output")
                 .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            OutputChoiceControl()
-                .disabled(self.model.isRunning)
-
-            if let path = model.outputFolderDisplay {
-                Text(path)
-                    .font(.system(size: 11.5))
+            HStack(spacing: 12) {
+                Text(outputCaption)
+                    .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .help(model.outputFolder?.path ?? path)
+                    .help(outputHelp)
+                OutputLink(title: folderChosen ? "Change" : "Choose Folder") {
+                    let revertIfCancelled = self.model.outputMode != .folder
+                    self.model.chooseOutputFolder(revertIfCancelled: revertIfCancelled)
+                }
+                if folderChosen {
+                    OutputLink(title: "Use originals", size: 12) {
+                        self.model.outputMode = .besideOriginals
+                        self.model.rememberOutputMode()
+                    }
+                }
             }
+            .disabled(self.model.isRunning)
         }
+    }
+
+    private var folderChosen: Bool {
+        model.outputMode == .folder && model.outputFolder != nil
+    }
+
+    private var outputCaption: String {
+        if folderChosen, let name = model.outputFolder?.lastPathComponent, !name.isEmpty {
+            return name
+        }
+        return "Next to originals"
+    }
+
+    private var outputHelp: String {
+        if folderChosen, let path = model.outputFolder?.path {
+            return path
+        }
+        return "WebP files are written beside each original"
     }
 
     private var qualityColumn: some View {
@@ -47,7 +72,8 @@ struct OptionsView: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .monospacedDigit()
             }
-            Slider(value: qualityBinding, in: 0...100, step: 1)
+            // Omit step so macOS does not draw tick marks. The binding still snaps to whole numbers.
+            Slider(value: qualityBinding, in: 0...100)
                 .disabled(model.isRunning)
         }
     }
@@ -60,44 +86,22 @@ struct OptionsView: View {
     }
 }
 
-/// Two segments. "Choose" always opens the folder panel, including when it is already selected.
-private struct OutputChoiceControl: View {
-    @Environment(AppModel.self) private var model
+/// Blue underlined text button. No fill and no bezel.
+private struct OutputLink: View {
+    let title: String
+    var size: CGFloat = 12.5
+    let action: () -> Void
+
+    @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        HStack(spacing: 2) {
-            segment(.besideOriginals) {
-                self.model.outputMode = .besideOriginals
-                self.model.rememberOutputMode()
-            }
-            segment(.folder) {
-                let revertIfCancelled = self.model.outputMode != .folder
-                self.model.chooseOutputFolder(revertIfCancelled: revertIfCancelled)
-            }
-        }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(0.08))
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Output")
-    }
-
-    private func segment(_ mode: OutputMode, action: @escaping () -> Void) -> some View {
-        let selected = model.outputMode == mode
-        return Button(action: action) {
-            Text(mode.title)
-                .font(.system(size: 12.5, weight: selected ? .semibold : .medium))
-                .foregroundStyle(selected ? Color.blue : Color.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 5)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(selected ? Color.white.opacity(0.16) : Color.clear)
-                )
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: size))
+                .foregroundStyle(Color.blue.opacity(isEnabled ? 1 : 0.4))
+                .underline()
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(selected ? AccessibilityTraits.isSelected : AccessibilityTraits())
+        .fixedSize(horizontal: true, vertical: false)
     }
 }

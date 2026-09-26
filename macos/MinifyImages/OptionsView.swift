@@ -102,6 +102,7 @@ struct OptionsView: View {
 private struct QualityGradientSlider: View {
     @Binding var value: Double
     @Environment(\.isEnabled) private var isEnabled
+    @FocusState private var focused: Bool
 
     private let thumb: CGFloat = 16
 
@@ -127,7 +128,12 @@ private struct QualityGradientSlider: View {
                     .frame(height: 6)
                 Circle()
                     .fill(Color.white)
-                    .overlay(Circle().strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5))
+                    .overlay(
+                        Circle().strokeBorder(
+                            self.focused ? Color.white.opacity(0.9) : Color.black.opacity(0.28),
+                            lineWidth: self.focused ? 1.5 : 0.5
+                        )
+                    )
                     .frame(width: self.thumb, height: self.thumb)
                     .shadow(color: Color.black.opacity(0.35), radius: 1.5, y: 0.5)
                     .offset(x: fraction * span)
@@ -145,6 +151,8 @@ private struct QualityGradientSlider: View {
         .frame(height: 22)
         .opacity(isEnabled ? 1 : 0.4)
         .focusable(isEnabled)
+        .focused(self.$focused)
+        .focusEffectDisabled()
         .onKeyPress(.leftArrow) {
             self.nudge(-1)
         }

@@ -18,6 +18,11 @@ struct ContentView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .background(WindowTitleSetter(title: "Minify Images"))
         .preferredColorScheme(.dark)
+        .onAppear {
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
         .onDrop(of: [.fileURL, .folder, .directory], isTargeted: $model.isTargeted) { providers in
             Task {
                 let urls = await DroppedFileLoader.urls(from: providers)
@@ -67,7 +72,20 @@ private final class TitleWindowView: NSView {
         guard let window else { return }
         window.title = title
         window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.styleMask.insert(.titled)
+        // Unified toolbar style draws the title beside the traffic lights.
+        // No toolbar, expanded style: the standard title bar centres the title.
+        window.toolbar = nil
+        window.toolbarStyle = .expanded
+        guard !didResignInitialFocus else { return }
+        didResignInitialFocus = true
+        DispatchQueue.main.async { [weak window] in
+            window?.makeFirstResponder(nil)
+        }
     }
+
+    private var didResignInitialFocus = false
 }
 
 private struct StatusBar: View {
@@ -77,8 +95,10 @@ private struct StatusBar: View {
         VStack(spacing: 0) {
             Divider().opacity(0.35)
             HStack(spacing: 8) {
-                statusMark
-                    .frame(width: 16, height: 16)
+                if showsStatusIcon {
+                    statusMark
+                        .frame(width: 16, height: 16)
+                }
                 Text(statusText)
                     .font(.system(size: 12.5, weight: .medium))
                     .monospacedDigit()
@@ -142,6 +162,10 @@ private struct StatusBar: View {
             return reason
         }
         return "Ready"
+    }
+
+    private var showsStatusIcon: Bool {
+        model.isRunning || model.lastSummary != nil
     }
 
     @ViewBuilder

@@ -17,8 +17,8 @@ struct MinifyImagesApp: App {
                     NSWindow.allowsAutomaticWindowTabbing = false
                 }
         }
-        .windowStyle(.automatic)
-        .windowToolbarStyle(.unified)
+        .windowStyle(.titleBar)
+        .windowToolbarStyle(.expanded)
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 560)
         .commands {

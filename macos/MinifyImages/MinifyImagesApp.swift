@@ -18,7 +18,6 @@ struct MinifyImagesApp: App {
                 }
         }
         .windowStyle(.titleBar)
-        .windowToolbarStyle(.expanded)
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 560)
         .commands {

@@ -42,7 +42,10 @@ struct ContentView: View {
 
 }
 
-/// Keeps the standard centred title bar title visible.
+/// Hides the system title (still set for Mission Control, the Window menu, and accessibility)
+/// and draws "Minify Images" at the window's horizontal centre, level with the traffic lights.
+/// macOS 26 draws the system title leading-aligned even with no toolbar, and a toolbar
+/// `.principal` item is centred in the toolbar's inset rather than across the full window.
 private struct WindowTitleSetter: NSViewRepresentable {
     var title: String
 
@@ -61,6 +64,11 @@ private struct WindowTitleSetter: NSViewRepresentable {
 private final class TitleWindowView: NSView {
     var title = ""
 
+    private var titleField: PassThroughTextField?
+    private var observedWindow: NSWindow?
+    private var didResignInitialFocus = false
+    private var didConstrainTitle = false
+
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     override func viewDidMoveToWindow() {
@@ -68,24 +76,131 @@ private final class TitleWindowView: NSView {
         applyTitle()
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        titleField?.removeFromSuperview()
+    }
+
     func applyTitle() {
         guard let window else { return }
         window.title = title
-        window.titleVisibility = .visible
+        window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = false
         window.styleMask.insert(.titled)
-        // Unified toolbar style draws the title beside the traffic lights.
-        // No toolbar, expanded style: the standard title bar centres the title.
         window.toolbar = nil
-        window.toolbarStyle = .expanded
+        observe(window)
+        installTitleIfNeeded()
+        positionTitle()
         guard !didResignInitialFocus else { return }
         didResignInitialFocus = true
-        DispatchQueue.main.async { [weak window] in
+        DispatchQueue.main.async { [weak self, weak window] in
             window?.makeFirstResponder(nil)
+            self?.installTitleIfNeeded()
+            self?.positionTitle()
         }
     }
 
-    private var didResignInitialFocus = false
+    private func observe(_ window: NSWindow) {
+        guard observedWindow !== window else { return }
+        NotificationCenter.default.removeObserver(self)
+        observedWindow = window
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowFrameChanged(_:)),
+            name: NSWindow.didResizeNotification,
+            object: window
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowKeyChanged(_:)),
+            name: NSWindow.didBecomeKeyNotification,
+            object: window
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(windowKeyChanged(_:)),
+            name: NSWindow.didResignKeyNotification,
+            object: window
+        )
+    }
+
+    private func installTitleIfNeeded() {
+        guard let window, let host = fullWidthHost(in: window) else { return }
+        let field: PassThroughTextField
+        if let existing = titleField, existing.superview === host {
+            field = existing
+        } else {
+            titleField?.removeFromSuperview()
+            didConstrainTitle = false
+            let created = PassThroughTextField(labelWithString: title)
+            created.font = NSFont.titleBarFont(ofSize: 0)
+            created.alignment = .center
+            created.drawsBackground = false
+            created.isBezeled = false
+            created.isEditable = false
+            created.isSelectable = false
+            created.refusesFirstResponder = true
+            created.translatesAutoresizingMaskIntoConstraints = true
+            created.autoresizingMask = []
+            created.maximumNumberOfLines = 1
+            host.addSubview(created)
+            titleField = created
+            field = created
+        }
+        field.stringValue = title
+        field.font = NSFont.titleBarFont(ofSize: 0)
+        updateTitleColor()
+    }
+
+    /// The title-bar ancestor that spans the window, so the label is not clipped at the traffic lights.
+    private func fullWidthHost(in window: NSWindow) -> NSView? {
+        guard let button = window.standardWindowButton(.closeButton) else { return nil }
+        let target = window.contentView?.bounds.width ?? 0
+        guard target > 1 else { return nil }
+        var view = button.superview
+        while let current = view {
+            if current.bounds.width >= target - 2 {
+                return current
+            }
+            view = current.superview
+        }
+        return nil
+    }
+
+    private func positionTitle() {
+        guard !didConstrainTitle,
+              let window,
+              let field = titleField,
+              let content = window.contentView,
+              let button = window.standardWindowButton(.closeButton) else { return }
+        field.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            field.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            field.centerYAnchor.constraint(equalTo: button.centerYAnchor)
+        ])
+        didConstrainTitle = true
+    }
+
+    private func updateTitleColor() {
+        guard let field = titleField, let window else { return }
+        field.textColor = window.isKeyWindow ? NSColor.labelColor : NSColor.secondaryLabelColor
+    }
+
+    @objc private func windowFrameChanged(_ notification: Notification) {
+        self.installTitleIfNeeded()
+        self.positionTitle()
+    }
+
+    @objc private func windowKeyChanged(_ notification: Notification) {
+        self.installTitleIfNeeded()
+        self.positionTitle()
+        self.updateTitleColor()
+    }
+}
+
+/// Title text must not take the click, so the title bar still drags the window.
+private final class PassThroughTextField: NSTextField {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
 private struct StatusBar: View {

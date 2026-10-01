@@ -9,37 +9,80 @@ final class AppModel {
     var droppedInputs: [URL] = []
     var jobs: [ImageJob] = []
     var isTargeted = false
-    var quality = 90
-    var maxEdge: MaxEdge = .off
-    var pngStrategy: PNGStrategy = .preserve
-    var includeSubfolders = false
+    var quality = 75
+    /// The PNG mode picker is gone. Lossy WebP at `quality`, with the alpha plane kept.
+    var pngStrategy: PNGStrategy = .photo
     var outputMode: OutputMode = .besideOriginals
     var outputFolder: URL?
     var isRunning = false
     var skippedNotice: String?
     var statusMessage: String?
     var lastSummary: RunSummary?
+    private(set) var runningQuality = 75
 
     private var runningTask: Task<Void, Never>?
+    private var activeGeneration: Int32 = 0
+    /// Set when a batch finishes with every tile succeeded. Convert stays off until this no longer matches.
+    private var settledSignature: ConvertSignature?
+    private var isPresentingPanel = false
+    private var scopedInputs: [URL] = []
+    private var scopedOutputURL: URL?
+
+    private enum Store {
+        static let bookmark = "minify.outputFolderBookmark"
+        static let path = "minify.outputFolderPath"
+        static let useFolder = "minify.outputUsesFolder"
+    }
+
+    init() {
+        restoreOutputFolder()
+    }
 
     var settings: ConversionSettings {
         ConversionSettings(
             quality: quality,
-            maxDimension: maxEdge.pixels,
+            maxDimension: nil,
             pngStrategy: pngStrategy,
-            includeSubfolders: includeSubfolders,
             outputFolder: outputMode == .folder ? outputFolder : nil
         )
     }
 
     var canConvert: Bool {
-        !jobs.isEmpty && !isRunning && (outputMode == .besideOriginals || outputFolder != nil)
+        guard !jobs.isEmpty, !isRunning else { return false }
+        guard outputMode == .besideOriginals || outputFolder != nil else { return false }
+        if jobs.contains(where: { self.needsEncode($0) }) { return true }
+        guard let settledSignature else { return true }
+        return signature != settledSignature
     }
 
     var convertDisabledReason: String? {
-        if jobs.isEmpty { return "Drop JPEG or PNG files to convert" }
+        if jobs.isEmpty { return "Drop JPEG, PNG or HEIC files to convert" }
         if outputMode == .folder && outputFolder == nil { return "Choose an output folder" }
         return nil
+    }
+
+    var inProgressStatus: String {
+        let total = jobs.count
+        guard total > 0 else { return "In progress · Quality \(runningQuality)" }
+        let finished = completedCount + failedCount
+        let current = min(finished + 1, total)
+        return "In progress · Quality \(runningQuality) · (\(current)/\(total))"
+    }
+
+    func doneStatus(_ summary: RunSummary) -> String {
+        if summary.totalIn <= 0 {
+            if summary.failed > 0 {
+                return "Done · \(summary.failed == 1 ? "1 failed" : "\(summary.failed) failed")"
+            }
+            return "Done"
+        }
+        let percent = ByteFormat.savedPercent(from: summary.totalIn, to: summary.totalOut)
+        let sizes = "\(ByteFormat.statusSize(summary.totalIn)) to \(ByteFormat.statusSize(summary.totalOut))"
+        var line = "Done · Saved \(percent)% (\(sizes))"
+        if summary.failed > 0 {
+            line += summary.failed == 1 ? " · 1 failed" : " · \(summary.failed) failed"
+        }
+        return line
     }
 
     var completedCount: Int {
@@ -57,61 +100,102 @@ final class AppModel {
     func addDroppedURLs(_ urls: [URL]) {
         guard !urls.isEmpty else { return }
         var merged = droppedInputs
+        var added = false
         for url in urls {
+            retainScope(url)
             let standardized = url.resolvingSymlinksInPath().standardizedFileURL
+            if standardized.path != url.standardizedFileURL.path {
+                retainScope(standardized)
+            }
             if !merged.contains(where: { $0.standardizedFileURL == standardized }) {
                 merged.append(standardized)
+                added = true
             }
         }
+        guard added else { return }
         droppedInputs = merged
-        refreshJobs(resetResults: true)
+        refreshJobs(resetResults: false)
+    }
+
+    /// Ignores the request while a batch is running so the in-progress count stays on the original list.
+    func removeJob(id: UUID) {
+        guard !isRunning else { return }
+        jobs.removeAll { $0.id == id }
+        droppedInputs = jobs.map(\.source)
+        if jobs.isEmpty {
+            skippedNotice = nil
+        }
+        lastSummary = nil
+        statusMessage = nil
     }
 
     func refreshJobs(resetResults: Bool) {
         let previous: [String: ImageJob] = resetResults ? [:] : Dictionary(
             uniqueKeysWithValues: jobs.map { ($0.source.standardizedFileURL.path, $0) }
         )
-        let collected = ImageCollector.collectDropped(urls: droppedInputs, recursive: includeSubfolders)
+        let collected = ImageCollector.collectDropped(urls: droppedInputs, recursive: true)
         jobs = collected.images.map { item in
             if let existing = previous[item.source.standardizedFileURL.path], !resetResults {
-                return ImageJob(id: existing.id, source: item.source, root: item.root, status: existing.status)
+                return ImageJob(
+                    id: existing.id,
+                    source: item.source,
+                    root: item.root,
+                    status: existing.status,
+                    convertedQuality: existing.convertedQuality,
+                    convertedOutputKey: existing.convertedOutputKey
+                )
             }
             return ImageJob(source: item.source, root: item.root)
         }
         if collected.skipped > 0 {
             skippedNotice = collected.skipped == 1
-                ? "Skipped 1 item that wasn’t JPEG or PNG"
-                : "Skipped \(collected.skipped) items that weren’t JPEG or PNG"
+                ? "Skipped 1 item that wasn’t JPEG, PNG, or HEIC"
+                : "Skipped \(collected.skipped) items that weren’t JPEG, PNG, or HEIC"
         } else {
             skippedNotice = nil
         }
         lastSummary = nil
+        statusMessage = nil
     }
 
     func chooseFiles() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = true
-        panel.canCreateDirectories = false
-        panel.allowedContentTypes = [.jpeg, .png, .folder]
-        panel.message = "Choose JPEG or PNG images, or a folder of them"
-        panel.prompt = "Add"
-        guard panel.runModal() == .OK else { return }
-        addDroppedURLs(panel.urls)
+        guard !isPresentingPanel else { return }
+        isPresentingPanel = true
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                defer { self.isPresentingPanel = false }
+                self.presentFilePanel()
+            }
+        }
     }
 
-    func chooseOutputFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Choose"
-        panel.message = "WebP files will be written here"
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        outputFolder = url
-        outputMode = .folder
+    func chooseOutputFolder(revertIfCancelled: Bool = false) {
+        guard !isPresentingPanel else { return }
+        isPresentingPanel = true
+        let revert = revertIfCancelled
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                defer { self.isPresentingPanel = false }
+                self.presentOutputFolderPanel(revertIfCancelled: revert)
+            }
+        }
+    }
+
+    func rememberOutputMode() {
+        UserDefaults.standard.set(outputMode == .folder, forKey: Store.useFolder)
+    }
+
+    /// Drops the chosen folder and writes beside the originals again.
+    func clearChosenOutputFolder() {
+        releaseOutputAccess()
+        outputFolder = nil
+        outputMode = .besideOriginals
+        rememberOutputMode()
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: Store.bookmark)
+        defaults.removeObject(forKey: Store.path)
     }
 
     func reveal(_ url: URL) {
@@ -129,14 +213,18 @@ final class AppModel {
 
     func clear() {
         cancel()
+        releaseInputScopes()
         droppedInputs = []
         jobs = []
         skippedNotice = nil
         statusMessage = nil
         lastSummary = nil
+        settledSignature = nil
     }
 
     func cancel() {
+        let wasRunning = isRunning
+        WebPEncoder.requestCancel()
         runningTask?.cancel()
         runningTask = nil
         isRunning = false
@@ -145,72 +233,295 @@ final class AppModel {
                 jobs[index].status = .queued
             }
         }
+        if wasRunning {
+            statusMessage = "Cancelled"
+        }
     }
 
     func convert() {
         guard canConvert else { return }
+        if !jobs.contains(where: { self.needsEncode($0) }) {
+            self.settledSignature = self.signature
+            return
+        }
+        ensureOutputAccess()
         cancel()
         isRunning = true
+        runningQuality = quality
         lastSummary = nil
         statusMessage = nil
-        for index in jobs.indices {
-            jobs[index].status = .queued
+        for index in jobs.indices where self.needsEncode(self.jobs[index]) {
+            self.jobs[index].status = .queued
+            self.jobs[index].convertedQuality = nil
+            self.jobs[index].convertedOutputKey = nil
         }
 
         let snapshot = jobs
         let currentSettings = settings
+        let runSignature = signature
+        let generation = WebPEncoder.generation
+        self.activeGeneration = generation
         runningTask = Task.detached(priority: .userInitiated) { [weak self] in
             var totalIn = 0
             var totalOut = 0
             var wrote = 0
             var failed = 0
 
+            var cancelled = false
             for job in snapshot {
-                guard !Task.isCancelled else { break }
-                await self?.markConverting(id: job.id)
+                if Task.isCancelled || WebPEncoder.generation != generation {
+                    cancelled = true
+                    break
+                }
+                if case .succeeded = job.status,
+                   job.convertedQuality == currentSettings.quality,
+                   job.convertedOutputKey == currentSettings.outputKey {
+                    continue
+                }
+                await self?.markConverting(id: job.id, generation: generation)
+                if Task.isCancelled || WebPEncoder.generation != generation {
+                    cancelled = true
+                    await self?.revertToQueued(id: job.id, generation: generation)
+                    break
+                }
                 do {
                     let result = try ConversionService.convert(
                         source: job.source,
                         root: job.root,
                         settings: currentSettings
                     )
+                    if Task.isCancelled || WebPEncoder.generation != generation {
+                        cancelled = true
+                        try? FileManager.default.removeItem(at: result.destination)
+                        await self?.revertToQueued(id: job.id, generation: generation)
+                        break
+                    }
                     totalIn += result.sourceBytes
                     totalOut += result.destBytes
                     wrote += 1
-                    await self?.markSucceeded(id: job.id, result: result)
+                    await self?.markSucceeded(
+                        id: job.id,
+                        result: result,
+                        generation: generation,
+                        quality: currentSettings.quality,
+                        outputKey: currentSettings.outputKey
+                    )
                 } catch is CancellationError {
+                    cancelled = true
+                    await self?.revertToQueued(id: job.id, generation: generation)
                     break
                 } catch {
                     failed += 1
-                    await self?.markFailed(id: job.id, message: error.localizedDescription)
+                    await self?.markFailed(id: job.id, message: error.localizedDescription, generation: generation)
                 }
             }
 
-            await self?.finishRun(wrote: wrote, failed: failed, totalIn: totalIn, totalOut: totalOut, cancelled: Task.isCancelled)
+            await self?.finishRun(
+                wrote: wrote,
+                failed: failed,
+                totalIn: totalIn,
+                totalOut: totalOut,
+                cancelled: cancelled || Task.isCancelled,
+                generation: generation,
+                runSignature: runSignature
+            )
         }
     }
 
-    private func markConverting(id: UUID) {
-        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        jobs[index].status = .converting
+    private func presentFilePanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.canCreateDirectories = false
+        panel.allowedContentTypes = [.jpeg, .png, .heic, .heif, .folder]
+        panel.message = "Add JPEG, PNG, or HEIC images, or a folder of them"
+        panel.prompt = "Add"
+        guard panel.runModal() == .OK else { return }
+        addDroppedURLs(panel.urls)
     }
 
-    private func markSucceeded(id: UUID, result: ConversionResult) {
-        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        jobs[index].status = .succeeded(result)
+    /// Directories only. Deferred off the SwiftUI click so the panel actually appears.
+    private func presentOutputFolderPanel(revertIfCancelled: Bool) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose"
+        panel.message = "WebP files will be written here"
+        panel.directoryURL = outputFolder
+        guard panel.runModal() == .OK, let url = panel.url else {
+            if revertIfCancelled, outputFolder == nil {
+                outputMode = .besideOriginals
+            }
+            return
+        }
+        adoptOutputFolder(url)
     }
 
-    private func markFailed(id: UUID, message: String) {
-        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
-        jobs[index].status = .failed(message)
+    private func adoptOutputFolder(_ url: URL) {
+        releaseOutputAccess()
+        if url.startAccessingSecurityScopedResource() {
+            scopedOutputURL = url
+        }
+        outputFolder = url
+        outputMode = .folder
+        persistOutputFolder(url)
     }
 
-    private func finishRun(wrote: Int, failed: Int, totalIn: Int, totalOut: Int, cancelled: Bool) {
+    private func ensureOutputAccess() {
+        guard outputMode == .folder, let outputFolder else { return }
+        guard scopedOutputURL == nil else { return }
+        if outputFolder.startAccessingSecurityScopedResource() {
+            scopedOutputURL = outputFolder
+        }
+    }
+
+    private func releaseOutputAccess() {
+        scopedOutputURL?.stopAccessingSecurityScopedResource()
+        scopedOutputURL = nil
+    }
+
+    private func retainScope(_ url: URL) {
+        let key = url.standardizedFileURL
+        guard !scopedInputs.contains(where: { $0.standardizedFileURL == key }) else { return }
+        if url.startAccessingSecurityScopedResource() {
+            scopedInputs.append(url)
+        }
+    }
+
+    private func releaseInputScopes() {
+        for url in scopedInputs {
+            url.stopAccessingSecurityScopedResource()
+        }
+        scopedInputs.removeAll()
+    }
+
+    private func persistOutputFolder(_ url: URL) {
+        let defaults = UserDefaults.standard
+        defaults.set(url.path, forKey: Store.path)
+        defaults.set(true, forKey: Store.useFolder)
+        if let data = bookmarkData(for: url) {
+            defaults.set(data, forKey: Store.bookmark)
+        }
+    }
+
+    private func restoreOutputFolder() {
+        let defaults = UserDefaults.standard
+        let useFolder = defaults.bool(forKey: Store.useFolder)
+        let resolved: URL?
+        if let data = defaults.data(forKey: Store.bookmark) {
+            resolved = resolveBookmark(data)
+        } else if let path = defaults.string(forKey: Store.path) {
+            resolved = URL(fileURLWithPath: path, isDirectory: true)
+        } else {
+            resolved = nil
+        }
+        guard let resolved else { return }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: resolved.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else { return }
+        if resolved.startAccessingSecurityScopedResource() {
+            scopedOutputURL = resolved
+        }
+        outputFolder = resolved
+        if useFolder {
+            outputMode = .folder
+        }
+    }
+
+    private func bookmarkData(for url: URL) -> Data? {
+        if let data = try? url.bookmarkData(
+            options: [.withSecurityScope],
+            includingResourceValuesForKeys: nil,
+            relativeTo: nil
+        ) {
+            return data
+        }
+        return try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+    }
+
+    private func resolveBookmark(_ data: Data) -> URL? {
+        var stale = false
+        if let url = try? URL(
+            resolvingBookmarkData: data,
+            options: [.withSecurityScope],
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        ) {
+            if stale { persistOutputFolder(url) }
+            return url
+        }
+        stale = false
+        if let url = try? URL(
+            resolvingBookmarkData: data,
+            options: [],
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        ) {
+            if stale { persistOutputFolder(url) }
+            return url
+        }
+        return nil
+    }
+
+    private func markConverting(id: UUID, generation: Int32) {
+        guard self.isRunning, generation == self.activeGeneration else { return }
+        guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+        self.jobs[index].status = .converting
+    }
+
+    private func revertToQueued(id: UUID, generation: Int32) {
+        guard generation == self.activeGeneration else { return }
+        guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+        if self.jobs[index].status == .converting {
+            self.jobs[index].status = .queued
+        }
+    }
+
+    private func markSucceeded(
+        id: UUID,
+        result: ConversionResult,
+        generation: Int32,
+        quality: Int,
+        outputKey: String
+    ) {
+        guard self.isRunning, generation == self.activeGeneration else { return }
+        guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+        self.jobs[index].status = .succeeded(result)
+        self.jobs[index].convertedQuality = quality
+        self.jobs[index].convertedOutputKey = outputKey
+    }
+
+    private func markFailed(id: UUID, message: String, generation: Int32) {
+        guard generation == self.activeGeneration else { return }
+        guard let index = self.jobs.firstIndex(where: { $0.id == id }) else { return }
+        self.jobs[index].status = .failed(message)
+    }
+
+    private func finishRun(
+        wrote: Int,
+        failed: Int,
+        totalIn: Int,
+        totalOut: Int,
+        cancelled: Bool,
+        generation: Int32,
+        runSignature: ConvertSignature
+    ) {
+        guard generation == self.activeGeneration else { return }
         isRunning = false
         runningTask = nil
         if cancelled {
             statusMessage = "Cancelled"
             return
+        }
+        let everyTileSucceeded = !jobs.isEmpty && jobs.allSatisfy { job in
+            if case .succeeded = job.status { return true }
+            return false
+        }
+        if failed == 0 && everyTileSucceeded && signature == runSignature {
+            settledSignature = runSignature
         }
         let whereText: String
         if let folder = settings.outputFolder {
@@ -226,6 +537,26 @@ final class AppModel {
             destinationNote: whereText
         )
     }
+
+    private var signature: ConvertSignature {
+        ConvertSignature(
+            quality: quality,
+            outputKey: settings.outputKey,
+            sources: jobs.map { $0.source.standardizedFileURL.path }.sorted()
+        )
+    }
+
+    /// A tile already written at this quality and output location does not need another encode.
+    private func needsEncode(_ job: ImageJob) -> Bool {
+        guard case .succeeded = job.status else { return true }
+        return job.convertedQuality != quality || job.convertedOutputKey != settings.outputKey
+    }
+}
+
+private struct ConvertSignature: Equatable, Sendable {
+    var quality: Int
+    var outputKey: String
+    var sources: [String]
 }
 
 struct ImageJob: Identifiable, Equatable, Sendable {
@@ -233,12 +564,23 @@ struct ImageJob: Identifiable, Equatable, Sendable {
     let source: URL
     let root: URL
     var status: JobStatus
+    var convertedQuality: Int?
+    var convertedOutputKey: String?
 
-    init(id: UUID = UUID(), source: URL, root: URL, status: JobStatus = .queued) {
+    init(
+        id: UUID = UUID(),
+        source: URL,
+        root: URL,
+        status: JobStatus = .queued,
+        convertedQuality: Int? = nil,
+        convertedOutputKey: String? = nil
+    ) {
         self.id = id
         self.source = source
         self.root = root
         self.status = status
+        self.convertedQuality = convertedQuality
+        self.convertedOutputKey = convertedOutputKey
     }
 
     var name: String { source.lastPathComponent }
@@ -256,35 +598,6 @@ enum OutputMode: String, CaseIterable, Identifiable {
     case folder
 
     var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .besideOriginals: return "Beside originals"
-        case .folder: return "Choose folder"
-        }
-    }
-}
-
-enum MaxEdge: Equatable, Hashable {
-    case off
-    case preset(Int)
-    case custom(Int)
-
-    static let presets = [2400, 1600, 1200]
-
-    var pixels: Int? {
-        switch self {
-        case .off: return nil
-        case .preset(let value), .custom(let value): return value
-        }
-    }
-
-    var menuTitle: String {
-        switch self {
-        case .off: return "Off"
-        case .preset(let value), .custom(let value): return "\(value) px"
-        }
-    }
 }
 
 struct RunSummary: Equatable {

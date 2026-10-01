@@ -21,7 +21,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A10000000000000000000002 /* Minify Images.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Minify Images.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000002 /* WebPinch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WebPinch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000003 /* MinifyImagesTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MinifyImagesTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -83,7 +83,7 @@
 		A10000000000000000000006 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000002 /* Minify Images.app */,
+				A10000000000000000000002 /* WebPinch.app */,
 				A10000000000000000000003 /* MinifyImagesTests.xctest */,
 			);
 			name = Products;
@@ -112,7 +112,7 @@
 				A1000000000000000000001D /* WebPBridge */,
 			);
 			productName = MinifyImages;
-			productReference = A10000000000000000000002 /* Minify Images.app */;
+			productReference = A10000000000000000000002 /* WebPinch.app */;
 			productType = "com.apple.product-type.application";
 		};
 		A10000000000000000000009 /* MinifyImagesTests */ = {
@@ -356,7 +356,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MinifyImages/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Minify Images";
+				INFOPLIST_KEY_CFBundleDisplayName = WebPinch;
+				INFOPLIST_KEY_CFBundleName = WebPinch;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -367,7 +368,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.im-abhisek.MinifyImages";
-				PRODUCT_NAME = "Minify Images";
+				PRODUCT_MODULE_NAME = MinifyImages;
+				PRODUCT_NAME = WebPinch;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -388,7 +390,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MinifyImages/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "Minify Images";
+				INFOPLIST_KEY_CFBundleDisplayName = WebPinch;
+				INFOPLIST_KEY_CFBundleName = WebPinch;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
@@ -399,7 +402,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.im-abhisek.MinifyImages";
-				PRODUCT_NAME = "Minify Images";
+				PRODUCT_MODULE_NAME = MinifyImages;
+				PRODUCT_NAME = WebPinch;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -419,7 +423,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Minify Images.app/Contents/MacOS/Minify Images";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WebPinch.app/Contents/MacOS/WebPinch";
 			};
 			name = Debug;
 		};
@@ -437,7 +441,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Minify Images.app/Contents/MacOS/Minify Images";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WebPinch.app/Contents/MacOS/WebPinch";
 			};
 			name = Release;
 		};

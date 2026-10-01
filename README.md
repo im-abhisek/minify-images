@@ -1,6 +1,6 @@
 # minify-images
 
-A small Mac tool that turns JPEG and PNG files into **high-quality WebP** for a personal blog.
+A small Mac tool that turns JPEG, PNG, and HEIC files into **high-quality WebP** for a personal blog.
 
 It aims for visually lossless results, not aggressive crushing. Transparency is kept. Nothing is resized unless you ask.
 
@@ -11,7 +11,7 @@ Two ways to run it:
 
 ## Mac app
 
-Native SwiftUI app. Encodes with [libwebp](https://developers.google.com/speed/webp) using the same quality policy as the CLI (quality 90 photos, lossless PNG with alpha, near-lossless opaque PNG).
+**WebPinch** is the native SwiftUI app, always in dark mode. The built bundle is `WebPinch.app`. It encodes with [libwebp](https://developers.google.com/speed/webp). The quality slider applies to JPEG, PNG, and HEIC (lossy WebP, alpha kept) and starts at **75**; the CLI default is still 90. HEIC is decoded with ImageIO. Display P3 and other wide-gamut sources are converted to sRGB before encoding, because the WebP bytes are raw pixels and do not store an ICC profile.
 
 This repo can be opened on a Mac. The app is not prebuilt; you compile it once in Xcode.
 
@@ -26,21 +26,21 @@ open macos/MinifyImages.xcodeproj
 ```
 
 1. Wait for Swift packages to finish resolving (first open downloads [libwebp](https://github.com/SDWebImage/libwebp-Xcode); needs network).
-2. Select the **Minify Images** scheme and **My Mac**.
+2. Select the **Minify Images** scheme (Xcode scheme name; the app is WebPinch) and **My Mac**.
 3. Press **⌘R**.
 
 If signing complains, open the **MinifyImages** target → **Signing & Capabilities** and choose your Personal Team (a free Apple ID is enough to run locally). The project ships ad-hoc signed (`CODE_SIGN_IDENTITY = "-"`) so Run often works with no team set.
 
-**⌘O** opens files or a folder. **⌘↩** converts. Esc cancels.
+**⌘O** opens files or a folder. **⌘↩** converts. Esc cancels. Finder Open With and `open -a` add files to the one window.
 
 Product → Test (**⌘U**) runs the Mac unit tests (quality policy, output paths, folder collection).
 
 ### What you get
 
-- Drop JPEG/PNG files **or a folder**
-- Progress, per-file success/error, Show in Finder
-- Output **next to originals** (default) or a folder you pick
-- Optional quality, long-edge cap, PNG Auto / Photo / Lossless, include subfolders
+- Drop JPEG, PNG, or HEIC files **or a folder**. A dropped folder includes JPEG, PNG, and HEIC files in subfolders. Finder’s Open With lists WebPinch for `.heic` and `.heif` too.
+- One pane: drop files or a folder, or use Add Files. Added images show as a thumbnail grid with per-file size and progress. The pane is a solid rounded surface with a faint canvas grid and hairline, and a soft blue tint while dragging. While converting, the border picks up a slow, faint blue-and-pink tint.
+- Output reads **Next to originals**, with a **Choose Folder** link. After a folder is chosen the name is shown, a small clear button returns to originals, and **Change** reopens the panel. The folder is remembered until it is cleared.
+- Quality (default 75) sits beside Output on a 0–100 slider whose track runs from red through yellow to green. Folder drops always include subfolders. The app does not resize. Transparent PNGs keep their alpha. The window title, Dock label, and app menu use the name WebPinch.
 
 Originals are never modified.
 
@@ -78,9 +78,10 @@ Drag a file onto the Terminal window after typing `./compress-for-blog ` (note t
 ```
 hero.jpg   →  hero.webp
 logo.png   →  logo.webp
+photo.heic →  photo.webp
 ```
 
-**Folder of images:** every JPEG/PNG in that folder (not subfolders unless `-r`).
+**Folder of images:** every JPEG, PNG, or HEIC in that folder (not subfolders unless `-r`). `.heif` is accepted too.
 
 **`--out`:** collect everything in one place, keeping subfolder names if you passed `-r`.
 
@@ -113,28 +114,28 @@ Originals are never modified.
 
 | Source | Default WebP | Why |
 | --- | --- | --- |
-| JPEG | quality **90**, effort 6 | Visually lossless for photographs |
+| JPEG, HEIC, HEIF | quality **90**, effort 6 | Visually lossless for photographs. Alpha is kept when the source has it. |
 | PNG with transparency | **lossless**, alpha kept | Soft edges and clear pixels stay intact |
 | PNG, no alpha | **near-lossless** at quality 90 | Screenshots and graphics stay sharp |
-| Size | **no resize** | Pass `--max 2400` (CLI) or set Long edge (app) if the file is huge |
+| Size | **no resize** | CLI: pass `--max 2400` if the file is huge. The Mac app does not resize. |
 
-`--quality` / the app slider only changes the photo / near-lossless paths (1–100):
+`--quality` (CLI, 1–100) and the app slider (0–100) only change the photo / near-lossless paths:
 
 - **90** — default. Safe for a header image.
 - **80** — still sharp, smaller. Fine for most posts.
 - **70** — use when the image is small on the page.
 - **Lossless** — bit-exact. Larger. Best for logos and UI.
 
-Optional max dimension never upscales. Skip it unless the source is far larger than the post layout.
+On the CLI, `--max` never upscales. Skip it unless the source is far larger than the post layout. The Mac app does not resize.
 
 ## Requirements
 
 - macOS 14+ for the app (Apple Silicon first; Intel via the same Xcode project)
 - Xcode 16+ to build the app
 - Node 20+ (`brew install node`) for the CLI
-- JPEG or PNG input (`.jpg`, `.jpeg`, `.png`)
+- JPEG, PNG, or HEIC input (`.jpg`, `.jpeg`, `.png`, `.heic`, `.heif`)
 
-iPhone photos are auto-rotated from EXIF so they don’t land sideways.
+iPhone photos are auto-rotated from EXIF (and the HEIC rotation box) so portrait shots don’t land sideways. The Mac app uses the primary image when a HEIC file contains more than one.
 
 ## Develop
 

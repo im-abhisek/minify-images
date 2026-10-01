@@ -1,55 +1,226 @@
 import SwiftUI
 
-struct DropZoneView: View {
+/// One pane: an empty drop target, or a thumbnail grid once files are added.
+struct ImagePaneView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let paneShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+    private static let paneFill = Color.black.opacity(0.16)
+    private static let paneRim = Color.black.opacity(0.68)
 
     var body: some View {
         @Bindable var model = model
         ZStack {
             FileDropCatcher(isTargeted: $model.isTargeted) { urls in
-                model.addDroppedURLs(urls)
+                self.model.addDroppedURLs(urls)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(model.isTargeted ? Color.accentColor.opacity(0.10) : Color.primary.opacity(0.035))
-                .allowsHitTesting(false)
-
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(
-                    model.isTargeted ? Color.accentColor : Color.primary.opacity(0.16),
-                    style: StrokeStyle(lineWidth: model.isTargeted ? 2 : 1.4, dash: model.isTargeted ? [] : [6, 5])
+            ZStack {
+                paneShape.fill(
+                    model.isTargeted
+                        ? AnyShapeStyle(Color.accentColor.opacity(0.14))
+                        : AnyShapeStyle(Self.paneFill)
                 )
-                .allowsHitTesting(false)
+                PaneGrid()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipShape(paneShape)
+            .allowsHitTesting(false)
 
-            VStack(spacing: 10) {
-                Image(systemName: model.isTargeted ? "square.and.arrow.down" : "photo.on.rectangle.angled")
-                    .font(.system(size: 28, weight: .regular))
-                    .foregroundStyle(model.isTargeted ? Color.accentColor : Color.secondary)
-                    .symbolRenderingMode(.hierarchical)
-                    .allowsHitTesting(false)
+            if model.jobs.isEmpty {
+                emptyState
+            } else {
+                listState
+            }
+        }
+        .overlay {
+            ZStack {
+                if model.isTargeted {
+                    paneShape.strokeBorder(Color.accentColor, lineWidth: 1)
+                } else {
+                    ConversionBorderGlow(animate: model.isRunning && !reduceMotion)
+                        .opacity(model.isRunning ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.8), value: model.isRunning)
+                    paneShape.strokeBorder(Self.paneRim, lineWidth: 1)
+                }
+            }
+            .allowsHitTesting(false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(minHeight: 150)
+        .animation(.easeInOut(duration: 0.16), value: model.isTargeted)
+        .onDrop(of: [.fileURL, .folder, .directory], isTargeted: $model.isTargeted) { providers in
+            Task {
+                let urls = await DroppedFileLoader.urls(from: providers)
+                self.model.addDroppedURLs(urls)
+            }
+            return true
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Drop files and folders")
+    }
 
-                Text(model.isTargeted ? "Drop to add" : "Drop JPEG or PNG")
+    private var emptyState: some View {
+        VStack(spacing: 19) {
+            VStack(spacing: 4) {
+                Text("Drop Files and Folders")
                     .font(.system(size: 15, weight: .semibold))
-                    .allowsHitTesting(false)
-
-                Text("Files or a folder. Originals are never changed.")
+                Text("Convert JPEG, PNG and HEIC to WebP")
                     .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
-                    .allowsHitTesting(false)
-
-                Button("Choose files…") {
-                    model.chooseFiles()
-                }
-                .buttonStyle(.bordered)
-                .padding(.top, 4)
             }
-            .padding(28)
+            .allowsHitTesting(false)
+            AddFilesButton()
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 196)
-        .animation(.easeInOut(duration: 0.16), value: model.isTargeted)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Drop JPEG or PNG files, or a folder")
+        .padding(16)
+    }
+
+    private var listState: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(headerTitle)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                if let skipped = model.skippedNotice {
+                    Text(skipped)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                AddFilesButton(filled: false)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 6)
+
+            ScrollView {
+                LazyVGrid(columns: tileColumns, spacing: 12) {
+                    ForEach(model.jobs) { job in
+                        JobTileView(job: job)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 16)
+            }
+            .scrollContentBackground(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.bottom, 8)
+    }
+
+    private var tileColumns: [GridItem] {
+        [GridItem(.adaptive(minimum: 120, maximum: 140), spacing: 12)]
+    }
+
+    private var headerTitle: String {
+        model.jobs.count == 1 ? "1 image" : "\(model.jobs.count) images"
+    }
+}
+
+/// Hairline canvas seams over the pane fill. 32pt cells, faint black.
+private struct PaneGrid: View {
+    var body: some View {
+        Canvas { context, size in
+            let spacing: CGFloat = 32
+            var path = Path()
+            var x = spacing / 2
+            while x < size.width {
+                path.move(to: CGPoint(x: x, y: 0))
+                path.addLine(to: CGPoint(x: x, y: size.height))
+                x += spacing
+            }
+            var y = spacing / 2
+            while y < size.height {
+                path.move(to: CGPoint(x: 0, y: y))
+                path.addLine(to: CGPoint(x: size.width, y: y))
+                y += spacing
+            }
+            context.stroke(path, with: .color(Color.black.opacity(0.20)), lineWidth: 1)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Soft blue and pink just inside the pane stroke. Blur is clipped to the
+/// rounded rect so the feather only runs inward. Reduce Motion holds the angle still.
+private struct ConversionBorderGlow: View {
+    var animate: Bool
+
+    private let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+    /// Matches the 1pt black rim so the glow starts on its inner edge.
+    private let rimInset: CGFloat = 1
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: !self.animate)) { timeline in
+            let angle = self.angle(at: timeline.date)
+            self.shape
+                .inset(by: self.rimInset)
+                .strokeBorder(Self.gradient(angle: angle), lineWidth: 5)
+                .blur(radius: 2)
+                .compositingGroup()
+                .clipShape(self.shape.inset(by: self.rimInset))
+                .clipShape(self.shape)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func angle(at date: Date) -> Angle {
+        guard self.animate else { return .degrees(0) }
+        let phase = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: Self.cycle) / Self.cycle
+        return .degrees(phase * 360)
+    }
+
+    /// One full trip around the border. Fast enough to see, still unhurried.
+    private static let cycle = 9.0
+    /// Same opacity as before. Pink sits further toward magenta so the two hues separate as they travel.
+    private static let blue = Color.blue.opacity(0.34)
+    private static let pink = Color(red: 0.93, green: 0.22, blue: 0.78).opacity(0.28)
+
+    private static func gradient(angle: Angle) -> AngularGradient {
+        AngularGradient(
+            gradient: Gradient(stops: [
+                Gradient.Stop(color: Self.blue, location: 0),
+                Gradient.Stop(color: Self.pink, location: 0.5),
+                Gradient.Stop(color: Self.blue, location: 1)
+            ]),
+            center: .center,
+            startAngle: angle,
+            endAngle: angle + .degrees(360)
+        )
+    }
+}
+
+private struct AddFilesButton: View {
+    /// Filled blue button in the empty pane. Plain blue text once thumbnails are showing.
+    var filled = true
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if filled {
+            Button {
+                self.model.chooseFiles()
+            } label: {
+                Label("Add Files", systemImage: "plus")
+            }
+            .buttonStyle(FilledBlueButtonStyle())
+        } else {
+            Button {
+                self.model.chooseFiles()
+            } label: {
+                Label("Add Files", systemImage: "plus")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.blue)
+            }
+            .buttonStyle(.plain)
+        }
     }
 }

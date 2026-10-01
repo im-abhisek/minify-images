@@ -1,10 +1,11 @@
 import Foundation
 
 /// Same quality policy as `src/cli.mjs` `webpOptions`.
-/// Keep the two in lockstep: visually lossless photos, lossless PNG+alpha, near-lossless opaque PNG.
+/// JPEG and HEIC are lossy at `quality`. PNG stays lossless or near-lossless unless photo/lossless is set.
 enum SourceKind: String, Equatable {
     case jpeg
     case png
+    case heic
 }
 
 struct ConversionSettings: Equatable, Sendable {
@@ -16,6 +17,14 @@ struct ConversionSettings: Equatable, Sendable {
 
     var lossless: Bool { pngStrategy == .lossless }
     var photo: Bool { pngStrategy == .photo }
+
+    /// Identity of where this batch writes, so a finished batch can be skipped until it changes.
+    var outputKey: String {
+        if let outputFolder {
+            return "folder:" + outputFolder.resolvingSymlinksInPath().standardizedFileURL.path
+        }
+        return "beside"
+    }
 }
 
 enum PNGStrategy: String, CaseIterable, Identifiable, Sendable {
@@ -74,6 +83,11 @@ enum EncodeRecipe: Equatable, Sendable {
 }
 
 enum QualityPolicy {
+    /// libwebp accepts 0...100 (`WebPConfigPreset` / `WebPValidateConfig`). 0 is valid, so the floor stays 0.
+    static func clampedQuality(_ quality: Int) -> Int {
+        min(100, max(0, quality))
+    }
+
     static func recipe(
         kind: SourceKind,
         hasAlpha: Bool,
@@ -83,14 +97,15 @@ enum QualityPolicy {
     ) -> EncodeRecipe {
         let forceLossless = lossless
         let pngPreserve = kind == .png && !photo && !forceLossless
+        let q = clampedQuality(quality)
 
         if forceLossless || (pngPreserve && hasAlpha) {
             return .lossless(exact: hasAlpha)
         }
         if pngPreserve {
-            return .nearLossless(quality: quality)
+            return .nearLossless(quality: q)
         }
-        return .photo(quality: quality)
+        return .photo(quality: q)
     }
 
     static func recipe(kind: SourceKind, hasAlpha: Bool, settings: ConversionSettings) -> EncodeRecipe {

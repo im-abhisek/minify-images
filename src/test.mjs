@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { convertImage, outputPathFor, parseArgs, run, webpOptions } from "./cli.mjs";
+import { convertImage, isImageFile, outputPathFor, parseArgs, run, webpOptions } from "./cli.mjs";
 
 let failed = 0;
 
@@ -154,6 +154,17 @@ await withTemp(async (dir) => {
 }
 
 {
+  const heif = webpOptions({ format: "heif", hasAlpha: true, quality: 75, lossless: false, photo: false });
+  assert(heif.label === "photo+alpha, q75", `HEIC/HEIF label (${heif.label})`);
+  assert(
+    heif.options.quality === 75 && heif.options.alphaQuality === 100 && heif.options.preset === "photo" && heif.options.lossless !== true,
+    "HEIC/HEIF uses lossy photo quality and keeps alpha"
+  );
+  assert(isImageFile("Photo.HEIC") && isImageFile("clip.heif"), "accepts .heic and .heif");
+  assert(!isImageFile("notes.txt") && !isImageFile("still.avif"), "rejects other extensions");
+}
+
+{
   const opts = parseArgs(["node", "cli", "--quality", "80", "--max", "2400", "-r", "a.png"]);
   assert(opts.quality === 80, "parses --quality");
   assert(opts.max === 2400, "parses --max");
@@ -217,6 +228,35 @@ await withTemp(async (dir) => {
   });
   assert(code === 0, "--help exits 0");
 }
+
+await withTemp(async (dir) => {
+  const folder = path.join(dir, "phone");
+  await mkdir(path.join(folder, "nested"), { recursive: true });
+  await writeFile(path.join(folder, "shot.heic"), "not-a-real-heic");
+  await writeFile(path.join(folder, "nested", "clip.HEIF"), "not-a-real-heif");
+  await writeFile(path.join(folder, "notes.txt"), "nope");
+  const logs = [];
+  const code = await run(["node", "cli", "-r", "--dry-run", folder], {
+    log: (msg) => logs.push(String(msg)),
+    error: (msg) => logs.push(String(msg)),
+  });
+  const text = logs.join("\n");
+  assert(code === 0, "HEIC folder dry-run exits 0");
+  assert(text.includes("shot.heic") && text.includes("clip.HEIF"), "recursive scan keeps .heic and .heif");
+  assert(!text.includes("notes.txt"), "recursive scan skips other files");
+});
+
+await withTemp(async (dir) => {
+  const txt = path.join(dir, "notes.txt");
+  await writeFile(txt, "nope");
+  const errors = [];
+  const code = await run(["node", "cli", txt], {
+    log: () => {},
+    error: (msg) => errors.push(String(msg)),
+  });
+  assert(code === 1, "non-image input exits 1");
+  assert(errors.join("\n").includes("Not a JPEG, PNG, or HEIC"), "non-image error names HEIC");
+});
 
 console.log("");
 if (failed) {

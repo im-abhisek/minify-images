@@ -7,7 +7,7 @@ struct CollectedImage: Equatable, Sendable {
 }
 
 enum ImageCollector {
-    private static let imageExtensions: Set<String> = ["jpg", "jpeg", "png"]
+    private static let imageExtensions: Set<String> = ["jpg", "jpeg", "png", "heic", "heif"]
 
     static func collect(inputs: [URL], recursive: Bool) throws -> [CollectedImage] {
         var found: [CollectedImage] = []
@@ -38,7 +38,7 @@ enum ImageCollector {
         return unique
     }
 
-    /// Dropped mixed selections: keep JPEG/PNG, skip anything else without failing the batch.
+    /// Dropped mixed selections: keep JPEG, PNG, and HEIC, skip anything else without failing the batch.
     static func collectDropped(urls: [URL], recursive: Bool) -> (images: [CollectedImage], skipped: Int) {
         var images: [CollectedImage] = []
         var skipped = 0
@@ -78,7 +78,7 @@ enum ImageCollector {
     }
 
     static func isSupportedType(_ type: UTType) -> Bool {
-        type.conforms(to: .jpeg) || type.conforms(to: .png) || type == .folder
+        type.conforms(to: .jpeg) || type.conforms(to: .png) || type.conforms(to: .heic) || type.conforms(to: .heif) || type == .folder
     }
 
     private static func walk(directory: URL, root: URL, recursive: Bool) throws -> [CollectedImage] {
@@ -113,7 +113,7 @@ enum ImageCollector {
             case .notFound(let url):
                 return "Not found: \(url.lastPathComponent)"
             case .notAnImage(let url):
-                return "Not a JPEG or PNG: \(url.lastPathComponent)"
+                return "Not a JPEG, PNG, or HEIC: \(url.lastPathComponent)"
             }
         }
     }

@@ -7,11 +7,11 @@ import { pathToFileURL } from "node:url";
 import sharp from "sharp";
 
 const VERSION = "1.0.0";
-const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png"]);
+const IMAGE_EXT = new Set([".jpg", ".jpeg", ".png", ".heic", ".heif"]);
 const DEFAULT_QUALITY = 90;
 
 const HELP = `
-minify-images  ·  JPEG/PNG → high-quality WebP for blog posts
+minify-images  ·  JPEG/PNG/HEIC → high-quality WebP for blog posts
 
 Usage:
   ./compress-for-blog [options] <file-or-folder> [more...]
@@ -34,7 +34,7 @@ Options:
   -v, --version       Show version
 
 Defaults (blog-oriented, visually lossless):
-  JPEG              WebP quality ${DEFAULT_QUALITY}, effort 6
+  JPEG, HEIC, HEIF  WebP quality ${DEFAULT_QUALITY}, effort 6 (alpha kept)
   PNG + transparency  lossless WebP (alpha preserved)
   PNG, no alpha     near-lossless WebP
   Resize            off unless you pass --max
@@ -123,7 +123,7 @@ export function parseArgs(argv) {
   return opts;
 }
 
-function isImageFile(filePath) {
+export function isImageFile(filePath) {
   return IMAGE_EXT.has(path.extname(filePath).toLowerCase());
 }
 
@@ -136,7 +136,7 @@ async function collectImages(inputPath, recursive) {
   const info = await stat(abs);
   if (info.isFile()) {
     if (!isImageFile(abs)) {
-      throw new Error(`Not a JPEG or PNG: ${inputPath}`);
+      throw new Error(`Not a JPEG, PNG, or HEIC: ${inputPath}`);
     }
     return [{ source: abs, root: path.dirname(abs) }];
   }
@@ -176,6 +176,7 @@ export function outputPathFor(source, root, outDir) {
 
 export function webpOptions({ format, hasAlpha, quality, lossless, photo }) {
   const forceLossless = lossless;
+  // HEIC/HEIF (sharp reports "heif") are not PNG, so they use the same lossy photo path as JPEG.
   const pngLikePhoto = format === "png" && photo;
   const pngPreserve = format === "png" && !photo && !forceLossless;
 
@@ -300,14 +301,19 @@ export async function run(argv, io = console) {
     return 0;
   }
   if (opts.inputs.length === 0) {
-    io.error("Pass at least one JPEG, PNG, or folder.\n");
+    io.error("Pass at least one JPEG, PNG, HEIC, or folder.\n");
     io.log(HELP);
     return 1;
   }
 
   const jobs = [];
-  for (const input of opts.inputs) {
-    jobs.push(...(await collectImages(input, opts.recursive)));
+  try {
+    for (const input of opts.inputs) {
+      jobs.push(...(await collectImages(input, opts.recursive)));
+    }
+  } catch (err) {
+    io.error(err.message);
+    return 1;
   }
 
   const unique = [];
@@ -321,7 +327,7 @@ export async function run(argv, io = console) {
   unique.sort((a, b) => a.source.localeCompare(b.source));
 
   if (unique.length === 0) {
-    io.error("No JPEG or PNG files found.");
+    io.error("No JPEG, PNG, or HEIC files found.");
     return 1;
   }
 

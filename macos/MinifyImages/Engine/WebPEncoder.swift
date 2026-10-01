@@ -2,12 +2,24 @@ import Foundation
 import WebPBridge
 
 enum WebPEncoder {
+    static func requestCancel() {
+        minify_webp_request_cancel()
+    }
+
+    static var generation: Int32 {
+        minify_webp_current_generation()
+    }
+
     static func encode(image: DecodedImage, recipe: EncodeRecipe) throws -> Data {
+        let generation = Self.generation
+        if Task.isCancelled {
+            throw CancellationError()
+        }
         var options = MinifyWebPEncodeOptions()
         switch recipe {
         case .photo(let quality):
             options.mode = MINIFY_WEBP_MODE_PHOTO
-            options.quality = Float(quality)
+            options.quality = Self.webpQuality(quality)
             options.exact = 0
         case .lossless(let exact):
             options.mode = MINIFY_WEBP_MODE_LOSSLESS
@@ -15,7 +27,7 @@ enum WebPEncoder {
             options.exact = exact ? 1 : 0
         case .nearLossless(let quality):
             options.mode = MINIFY_WEBP_MODE_NEAR_LOSSLESS
-            options.quality = Float(quality)
+            options.quality = Self.webpQuality(quality)
             options.exact = 0
         }
 
@@ -34,11 +46,22 @@ enum WebPEncoder {
             )
         }
 
+        if status == -7 || Self.generation != generation {
+            if let outBuf {
+                minify_webp_free(outBuf)
+            }
+            throw CancellationError()
+        }
         guard status == 0, let outBuf, outLen > 0 else {
             throw EncodeError.failed(code: Int(status))
         }
         defer { minify_webp_free(outBuf) }
         return Data(bytes: outBuf, count: outLen)
+    }
+
+    /// 0...100 inclusive. libwebp rejects values outside that range and accepts 0.
+    private static func webpQuality(_ quality: Int) -> Float {
+        Float(QualityPolicy.clampedQuality(quality))
     }
 
     enum EncodeError: LocalizedError {

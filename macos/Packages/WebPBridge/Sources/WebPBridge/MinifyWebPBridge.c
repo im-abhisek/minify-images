@@ -1,6 +1,26 @@
 #include "MinifyWebPBridge.h"
 
+#include <stdatomic.h>
 #include <webp/encode.h>
+
+static atomic_int g_minify_webp_generation = 0;
+
+static int minify_webp_progress(int percent, const WebPPicture *picture) {
+    (void)percent;
+    const int *started = picture->user_data;
+    if (started != NULL && *started != atomic_load_explicit(&g_minify_webp_generation, memory_order_acquire)) {
+        return 0;
+    }
+    return 1;
+}
+
+void minify_webp_request_cancel(void) {
+    atomic_fetch_add_explicit(&g_minify_webp_generation, 1, memory_order_acq_rel);
+}
+
+int minify_webp_current_generation(void) {
+    return atomic_load_explicit(&g_minify_webp_generation, memory_order_acquire);
+}
 
 int minify_webp_encode_rgba(
     const uint8_t *rgba,
@@ -24,6 +44,7 @@ int minify_webp_encode_rgba(
         config.method = 6;
         config.alpha_quality = 100;
         config.use_sharp_yuv = 1;
+        // libwebp 1.5 accepts only 0 or 1. 1 turns on its worker thread.
         config.thread_level = 1;
     } else if (options.mode == MINIFY_WEBP_MODE_LOSSLESS) {
         if (!WebPConfigPreset(&config, WEBP_PRESET_DEFAULT, 100)) {
@@ -58,19 +79,33 @@ int minify_webp_encode_rgba(
     picture.use_argb = config.lossless ? 1 : 0;
     picture.width = width;
     picture.height = height;
+    int started = minify_webp_current_generation();
 
     if (!WebPPictureImportRGBA(&picture, rgba, stride)) {
         WebPPictureFree(&picture);
         return -5;
+    }
+    if (started != minify_webp_current_generation()) {
+        WebPPictureFree(&picture);
+        return -7;
     }
 
     WebPMemoryWriter writer;
     WebPMemoryWriterInit(&writer);
     picture.writer = WebPMemoryWrite;
     picture.custom_ptr = &writer;
+    picture.progress_hook = minify_webp_progress;
+    picture.user_data = &started;
 
     const int ok = WebPEncode(&config, &picture);
+    const int aborted = picture.error_code == VP8_ENC_ERROR_USER_ABORT
+        || started != minify_webp_current_generation();
     WebPPictureFree(&picture);
+
+    if (aborted) {
+        WebPMemoryWriterClear(&writer);
+        return -7;
+    }
 
     if (!ok || writer.mem == NULL || writer.size == 0) {
         WebPMemoryWriterClear(&writer);

@@ -2,170 +2,214 @@ import SwiftUI
 
 struct OptionsView: View {
     @Environment(AppModel.self) private var model
-    @State private var showAdvanced = false
 
     var body: some View {
-        @Bindable var model = model
-        VStack(alignment: .leading, spacing: 12) {
-            outputRow
-
-            DisclosureGroup(isExpanded: $showAdvanced) {
-                VStack(alignment: .leading, spacing: 14) {
-                    qualityRow
-                    maxEdgeRow
-                    pngRow
-                    Toggle("Include subfolders", isOn: $model.includeSubfolders)
-                        .onChange(of: model.includeSubfolders) { _, _ in
-                            if !model.isRunning {
-                                model.refreshJobs(resetResults: true)
-                            }
-                        }
-                    Text("Defaults match the CLI: quality 90, no resize, Auto PNG.")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 10)
-            } label: {
-                Text("Options")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .tint(.secondary)
+        HStack(alignment: .top, spacing: 20) {
+            outputColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
+            qualityColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 20)
+        .padding(.top, 24)
+        .padding(.bottom, 24)
     }
 
-    private var outputRow: some View {
-        @Bindable var model = model
-        return HStack(alignment: .firstTextBaseline, spacing: 12) {
+    private var outputColumn: some View {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Output")
-                .font(.system(size: 12.5, weight: .medium))
-                .frame(width: 72, alignment: .leading)
+                .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
 
-            Picker("Output", selection: $model.outputMode) {
-                ForEach(OutputMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 280)
-            .onChange(of: model.outputMode) { _, mode in
-                if mode == .folder && model.outputFolder == nil {
-                    model.chooseOutputFolder()
-                    if model.outputFolder == nil {
-                        model.outputMode = .besideOriginals
+            HStack(spacing: 12) {
+                HStack(spacing: 4) {
+                    Text(outputCaption)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(outputHelp)
+                        .layoutPriority(-1)
+                    if folderChosen {
+                        Button {
+                            self.model.clearChosenOutputFolder()
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.secondary.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .fixedSize()
+                        .help("Use originals")
+                        .accessibilityLabel("Use originals")
                     }
                 }
-            }
-
-            if model.outputMode == .folder {
-                Button(model.outputFolder?.lastPathComponent ?? "Choose…") {
-                    model.chooseOutputFolder()
+                OutputLink(title: folderChosen ? "Change" : "Choose Folder") {
+                    let revertIfCancelled = self.model.outputMode != .folder
+                    self.model.chooseOutputFolder(revertIfCancelled: revertIfCancelled)
                 }
-                .help(model.outputFolder?.path ?? "Choose a folder")
+                Spacer(minLength: 0)
             }
-
-            Spacer(minLength: 0)
+            .disabled(self.model.isRunning)
         }
     }
 
-    private var qualityRow: some View {
+    private var folderChosen: Bool {
+        model.outputMode == .folder && model.outputFolder != nil
+    }
+
+    private var outputCaption: String {
+        if folderChosen, let name = model.outputFolder?.lastPathComponent, !name.isEmpty {
+            return name
+        }
+        return "Next to originals"
+    }
+
+    private var outputHelp: String {
+        if folderChosen, let path = model.outputFolder?.path {
+            return path
+        }
+        return "WebP files are written beside each original"
+    }
+
+    private var qualityColumn: some View {
         @Bindable var model = model
         return VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(spacing: 6) {
                 Text("Quality")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .frame(width: 72, alignment: .leading)
+                    .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Text("\(model.quality)")
-                    .font(.system(size: 12.5, weight: .semibold).monospacedDigit())
-                Text(qualityCaption)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                Spacer()
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .monospacedDigit()
             }
-            Slider(value: qualityBinding, in: 70...100, step: 1)
-                .disabled(model.pngStrategy == .lossless)
+            // A custom track so macOS does not draw tick marks. The binding still snaps to whole numbers.
+            QualityGradientSlider(value: qualityBinding)
+                .disabled(model.isRunning)
         }
     }
 
     private var qualityBinding: Binding<Double> {
         Binding(
-            get: { Double(model.quality) },
-            set: { model.quality = Int($0.rounded()) }
+            get: { Double(self.model.quality) },
+            set: { self.model.quality = QualityPolicy.clampedQuality(Int($0.rounded())) }
         )
     }
+}
 
-    private var qualityCaption: String {
-        switch model.quality {
-        case 90...100: return "visually lossless photographs"
-        case 80..<90: return "still sharp, smaller"
-        default: return "fine for small inline images"
-        }
-    }
+/// Full-track gradient: red at 0, yellow through the middle, green by about 80.
+/// 75 lands in the middle of the yellow-to-green blend.
+private struct QualityGradientSlider: View {
+    @Binding var value: Double
+    @Environment(\.isEnabled) private var isEnabled
+    @FocusState private var focused: Bool
 
-    private var maxEdgeRow: some View {
-        @Bindable var model = model
-        return HStack(spacing: 12) {
-            Text("Long edge")
-                .font(.system(size: 12.5, weight: .medium))
-                .frame(width: 72, alignment: .leading)
-                .foregroundStyle(.secondary)
+    private let thumb: CGFloat = 16
 
-            Picker("Long edge", selection: maxEdgeBinding) {
-                Text("Off").tag(Optional<Int>.none)
-                ForEach(MaxEdge.presets, id: \.self) { value in
-                    Text("\(value) px").tag(Optional(value))
-                }
+    private static let gradient = LinearGradient(
+        stops: [
+            Gradient.Stop(color: .red, location: 0),
+            Gradient.Stop(color: .yellow, location: 0.50),
+            Gradient.Stop(color: .yellow, location: 0.70),
+            Gradient.Stop(color: .green, location: 0.80),
+            Gradient.Stop(color: .green, location: 1)
+        ],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+
+    var body: some View {
+        GeometryReader { geo in
+            let span = max(geo.size.width - self.thumb, 1)
+            let fraction = min(1, max(0, self.value / 100))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Self.gradient)
+                    .frame(height: 6)
+                Circle()
+                    .fill(Color.white)
+                    .overlay(
+                        Circle().strokeBorder(
+                            self.focused ? Color.white.opacity(0.9) : Color.black.opacity(0.28),
+                            lineWidth: self.focused ? 1.5 : 0.5
+                        )
+                    )
+                    .frame(width: self.thumb, height: self.thumb)
+                    .shadow(color: Color.black.opacity(0.35), radius: 1.5, y: 0.5)
+                    .offset(x: fraction * span)
             }
-            .labelsHidden()
-            .frame(width: 140)
-
-            Text("Never upscales. Off unless the source is huge.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var maxEdgeBinding: Binding<Int?> {
-        Binding(
-            get: { model.maxEdge.pixels },
-            set: { newValue in
-                if let newValue {
-                    model.maxEdge = .preset(newValue)
-                } else {
-                    model.maxEdge = .off
-                }
-            }
-        )
-    }
-
-    private var pngRow: some View {
-        @Bindable var model = model
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                Text("PNG")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .frame(width: 72, alignment: .leading)
-                    .foregroundStyle(.secondary)
-                Picker("PNG", selection: $model.pngStrategy) {
-                    ForEach(PNGStrategy.allCases) { strategy in
-                        Text(strategy.title).tag(strategy)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        guard self.isEnabled else { return }
+                        self.setValue(x: gesture.location.x, span: span)
                     }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: 280)
-                Spacer(minLength: 0)
-            }
-            Text(model.pngStrategy.caption)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 84)
+            )
         }
+        .frame(height: 22)
+        .opacity(isEnabled ? 1 : 0.4)
+        .focusable(isEnabled)
+        .focused(self.$focused)
+        .focusEffectDisabled()
+        .onKeyPress(.leftArrow) {
+            self.nudge(-1)
+        }
+        .onKeyPress(.downArrow) {
+            self.nudge(-1)
+        }
+        .onKeyPress(.rightArrow) {
+            self.nudge(1)
+        }
+        .onKeyPress(.upArrow) {
+            self.nudge(1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Quality")
+        .accessibilityValue(Text("\(Int(value.rounded()))"))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                self.nudge(1)
+            case .decrement:
+                self.nudge(-1)
+            default:
+                break
+            }
+        }
+    }
+
+    private func setValue(x: CGFloat, span: CGFloat) {
+        let clamped = min(max(x - self.thumb / 2, 0), span)
+        self.value = Double(clamped / span) * 100
+    }
+
+    @discardableResult
+    private func nudge(_ delta: Double) -> KeyPress.Result {
+        guard self.isEnabled else { return .ignored }
+        self.value = min(100, max(0, self.value + delta))
+        return .handled
+    }
+}
+
+/// Blue underlined text button. No fill and no bezel.
+private struct OutputLink: View {
+    let title: String
+    let action: () -> Void
+
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12.5))
+                .foregroundStyle(Color.blue.opacity(isEnabled ? 1 : 0.4))
+                .underline()
+        }
+        .buttonStyle(.plain)
+        .fixedSize(horizontal: true, vertical: false)
     }
 }
